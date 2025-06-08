@@ -101,10 +101,11 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 20px;
+    gap: 15px;
     transition: all 0.3s ease;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     flex-shrink: 0;
+    padding: 20px;
 }
 
 .node:hover {
@@ -132,6 +133,33 @@ body {
 .node.powered-off i,
 .node.powered-off .node-label {
     color: #999;
+}
+
+.node.powered-off .monitor img {
+    content: url('images/pc-off.png');
+    opacity: 0.7;
+}
+
+.node.powered-off .cpu img,
+.node.powered-off .keyboard img {
+    opacity: 0.7;
+    filter: grayscale(100%);
+}
+
+.node.active {
+    background: var(--primary);
+    transform: scale(1.05);
+}
+
+.node.active i,
+.node.active .node-label {
+    color: white;
+}
+
+.node.active .monitor img,
+.node.active .cpu img,
+.node.active .keyboard img {
+    filter: brightness(1.2);
 }
 
 .connection {
@@ -214,16 +242,6 @@ body {
     transform: translate(-50%, -50%);
 }
 
-.node.active {
-    background: var(--primary);
-    transform: scale(1.05);
-}
-
-.node.active i,
-.node.active .node-label {
-    color: white;
-}
-
 .connection.active {
     background: var(--success);
 }
@@ -304,8 +322,8 @@ body {
     position: absolute;
     top: 15px;
     right: 15px;
-    background: #f5f5f5;
-    border: 1px solid #ddd;
+    background: #fff;
+    border: 2px solid var(--primary);
     color: var(--primary);
     cursor: pointer;
     font-size: 1.2rem;
@@ -317,15 +335,41 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
 .power-toggle:hover {
-    background: #eee;
+    transform: scale(1.1);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
 }
 
 .power-toggle.powered-off {
     color: #999;
     background: #f5f5f5;
+    border-color: #ccc;
+    box-shadow: none;
+}
+
+.power-toggle.powered-off:hover {
+    background: #eee;
+    border-color: #999;
+}
+
+/* Add a subtle pulse animation for the powered-on state */
+@keyframes powerPulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(52, 152, 219, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(52, 152, 219, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(52, 152, 219, 0);
+    }
+}
+
+.power-toggle:not(.powered-off) {
+    animation: powerPulse 2s infinite;
 }
 
 .status {
@@ -553,4 +597,50 @@ body {
     font-size: 1.2rem;
     font-weight: 600;
     color: var(--primary);
+}
+
+.monitor {
+    width: 90%;
+    height: auto;
+    position: relative;
+}
+
+.monitor img {
+    width: 100%;
+    height: auto;
+    transition: all 0.3s ease;
+}
+
+.cpu {
+    width: 40%;
+    height: auto;
+    position: relative;
+}
+
+.cpu img {
+    width: 100%;
+    height: auto;
+    transition: all 0.3s ease;
+}
+
+.keyboard {
+    width: 70%;
+    height: auto;
+    position: relative;
+}
+
+.keyboard img {
+    width: 100%;
+    height: auto;
+    transition: all 0.3s ease;
+}
+
+.node.active .monitor img,
+.node.active .cpu img,
+.node.active .keyboard img {
+    filter: brightness(1.2);
+}
+
+.node.active .node-label {
+    color: white;
 }

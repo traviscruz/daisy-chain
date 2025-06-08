@@ -67,15 +67,19 @@ function createNode(id) {
         toggleNodePower(id);
     };
     
-    const icon = document.createElement('i');
-    icon.className = 'fas fa-desktop';
+    const monitor = document.createElement('div');
+    monitor.className = 'monitor';
+    const monitorImg = document.createElement('img');
+    monitorImg.src = 'images/pc-on.png';
+    monitorImg.alt = 'PC';
+    monitor.appendChild(monitorImg);
     
     const label = document.createElement('span');
     label.className = 'node-label';
     label.textContent = `PC${id}`;
     
     node.appendChild(powerToggle);
-    node.appendChild(icon);
+    node.appendChild(monitor);
     node.appendChild(label);
     
     return node;
@@ -352,6 +356,41 @@ async function sendMessage() {
     setTimeout(resetNetwork, 2000);
 }
 
+/**
+ * Toggles all nodes between on and off states
+ */
+function toggleAllNodes() {
+    // Check if any nodes are powered off
+    const anyPoweredOff = Object.values(NetworkState.nodes)
+        .some(node => node.classList.contains('powered-off'));
+    
+    // Toggle all nodes to the opposite state
+    Object.keys(NetworkState.nodes).forEach(nodeId => {
+        const node = NetworkState.nodes[nodeId];
+        const isPoweredOff = node.classList.contains('powered-off');
+        
+        // Only toggle if the current state doesn't match the desired state
+        if ((anyPoweredOff && isPoweredOff) || (!anyPoweredOff && !isPoweredOff)) {
+            toggleNodePower(nodeId);
+        }
+    });
+    
+    // Update button appearance
+    const toggleBtn = document.getElementById('toggleAllBtn');
+    if (anyPoweredOff) {
+        toggleBtn.className = 'btn btn-success w-100';
+        toggleBtn.innerHTML = '<i class="fas fa-power-off me-2"></i>All PCs On';
+    } else {
+        toggleBtn.className = 'btn btn-danger w-100';
+        toggleBtn.innerHTML = '<i class="fas fa-power-off me-2"></i>All PCs Off';
+    }
+    
+    // Update status message
+    const newState = anyPoweredOff ? 'on' : 'off';
+    DOM.status.textContent = `All PCs powered ${newState}`;
+    addMessageToHistory(`All PCs powered ${newState}`, true);
+}
+
 // Event Listeners
 DOM.speedSlider.addEventListener('input', () => {
     DOM.speedValue.textContent = `${DOM.speedSlider.value}x`;
@@ -359,8 +398,10 @@ DOM.speedSlider.addEventListener('input', () => {
 
 // Initialize the network
 function initializeNetwork() {
-    addNode();
-    addNode();
+    // Add 5 PCs initially
+    for (let i = 0; i < 5; i++) {
+        addNode();
+    }
 }
 
 // Start the network
