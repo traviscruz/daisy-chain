@@ -93,9 +93,13 @@ function createConnection() {
     const connection = document.createElement('div');
     connection.className = 'connection';
     
-    const dataPacket = document.createElement('div');
-    dataPacket.className = 'data-packet';
-    connection.appendChild(dataPacket);
+    // Create multiple data packets for a more dynamic effect
+    for (let i = 0; i < 8; i++) {  // Increased from 1 to 8 packets
+        const dataPacket = document.createElement('div');
+        dataPacket.className = 'data-packet';
+        dataPacket.style.animationDelay = `${i * 0.15}s`;  // Stagger the animations
+        connection.appendChild(dataPacket);
+    }
     
     connection.addEventListener('click', () => {
         toggleWireFailure(connection);
@@ -142,6 +146,47 @@ function addMessageToHistory(message, isSuccess) {
 }
 
 /**
+ * Shows a toast notification
+ * @param {string} message - The message to display
+ * @param {boolean} isSuccess - Whether the message represents a success or failure
+ */
+function showToast(message, isSuccess) {
+    const toastContainer = document.querySelector('.toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${isSuccess ? 'success' : 'error'}`;
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'assertive');
+    toast.setAttribute('aria-atomic', 'true');
+    
+    const icon = isSuccess ? 'check-circle' : 'times-circle';
+    const iconClass = isSuccess ? 'success-icon' : 'error-icon';
+    
+    toast.innerHTML = `
+        <div class="toast-header">
+            <i class="fas fa-${icon} ${iconClass} me-2"></i>
+            <strong class="me-auto">${isSuccess ? 'Success' : 'Error'}</strong>
+            <button type="button" class="btn-close toast-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+            ${message}
+        </div>
+    `;
+    
+    toastContainer.appendChild(toast);
+    const bsToast = new bootstrap.Toast(toast, {
+        autohide: true,
+        delay: 3000
+    });
+    
+    bsToast.show();
+    
+    // Remove the toast element after it's hidden
+    toast.addEventListener('hidden.bs.toast', () => {
+        toast.remove();
+    });
+}
+
+/**
  * Toggles the power state of a node
  * @param {number} nodeId - The ID of the node to toggle
  */
@@ -152,10 +197,12 @@ function toggleNodePower(nodeId) {
     if (isPoweredOff) {
         node.classList.remove('powered-off');
         DOM.status.textContent = `PC${nodeId} powered on`;
+        showToast(`PC${nodeId} powered on`, true);
         addMessageToHistory(`PC${nodeId} powered on`, true);
     } else {
         node.classList.add('powered-off');
         DOM.status.textContent = `PC${nodeId} powered off`;
+        showToast(`PC${nodeId} powered off`, true);
         addMessageToHistory(`PC${nodeId} powered off`, true);
     }
     
@@ -173,10 +220,12 @@ function toggleWireFailure(connection) {
     if (isBroken) {
         connection.classList.remove('broken');
         DOM.status.textContent = 'Wire repaired';
+        showToast('Wire repaired', true);
         addMessageToHistory('Wire repaired', true);
     } else {
         connection.classList.add('broken');
         DOM.status.textContent = 'Wire broken';
+        showToast('Wire broken', true);
         addMessageToHistory('Wire broken', true);
     }
     
@@ -202,6 +251,7 @@ function updateSelects() {
 function addNode() {
     if (NetworkState.nodeCount >= 10) {
         DOM.status.textContent = 'Maximum number of nodes (10) reached!';
+        showToast('Failed to add node: Maximum limit reached', false);
         addMessageToHistory('Failed to add node: Maximum limit reached', false);
         return;
     }
@@ -221,6 +271,7 @@ function addNode() {
     updateSelects();
     updateStats();
     DOM.status.textContent = `Node PC${NetworkState.nodeCount} added successfully!`;
+    showToast(`Node PC${NetworkState.nodeCount} added successfully`, true);
     addMessageToHistory(`Node PC${NetworkState.nodeCount} added successfully`, true);
 }
 
@@ -230,6 +281,7 @@ function addNode() {
 function removeNode() {
     if (NetworkState.nodeCount <= 2) {
         DOM.status.textContent = 'Cannot remove node. Minimum 2 nodes required!';
+        showToast('Failed to remove node: Minimum limit reached', false);
         addMessageToHistory('Failed to remove node: Minimum limit reached', false);
         return;
     }
@@ -247,6 +299,7 @@ function removeNode() {
     updateSelects();
     updateStats();
     DOM.status.textContent = `Node PC${NetworkState.nodeCount + 1} removed successfully!`;
+    showToast(`Node PC${NetworkState.nodeCount + 1} removed successfully`, true);
     addMessageToHistory(`Node PC${NetworkState.nodeCount + 1} removed successfully`, true);
 }
 
@@ -275,16 +328,16 @@ async function sendMessage() {
     const fromNode = parseInt(DOM.fromNode.value);
     const toNode = parseInt(DOM.toNode.value);
     
-    // Input validation
     if (fromNode === toNode) {
         DOM.status.textContent = 'Cannot send message to the same node!';
+        showToast('Failed to send message: Same source and destination', false);
         addMessageToHistory('Failed to send message: Same source and destination', false);
         return;
     }
     
-    // Check node states
     if (NetworkState.nodes[fromNode].classList.contains('powered-off')) {
         DOM.status.textContent = `Cannot send message: PC${fromNode} is powered off!`;
+        showToast(`Failed to send message: PC${fromNode} is powered off`, false);
         addMessageToHistory(`Failed to send message: PC${fromNode} is powered off`, false);
         NetworkState.messagesFailed++;
         updateStats();
@@ -292,6 +345,7 @@ async function sendMessage() {
     }
     if (NetworkState.nodes[toNode].classList.contains('powered-off')) {
         DOM.status.textContent = `Cannot send message: PC${toNode} is powered off!`;
+        showToast(`Failed to send message: PC${toNode} is powered off`, false);
         addMessageToHistory(`Failed to send message: PC${toNode} is powered off`, false);
         NetworkState.messagesFailed++;
         updateStats();
@@ -301,25 +355,34 @@ async function sendMessage() {
     resetNetwork();
     NetworkState.messagesSent++;
     
-    // Calculate path
     const direction = fromNode < toNode ? 1 : -1;
     const path = [];
     for (let i = fromNode; i !== toNode + direction; i += direction) {
         path.push(i);
     }
     
-    // Simulate data transmission
     for (let i = 0; i < path.length; i++) {
         const currentNode = path[i];
+        
+        if (NetworkState.nodes[currentNode].classList.contains('powered-off')) {
+            DOM.status.textContent = `Message failed: PC${currentNode} is powered off!`;
+            showToast(`Message failed: PC${currentNode} is powered off`, false);
+            addMessageToHistory(`Message failed: PC${currentNode} is powered off`, false);
+            NetworkState.messagesFailed++;
+            updateStats();
+            setTimeout(resetNetwork, 2000);
+            return;
+        }
+        
         NetworkState.nodes[currentNode].classList.add('active');
         
         if (i < path.length - 1) {
             const connectionIndex = Math.min(currentNode, path[i + 1]) - 1;
             const connection = NetworkState.connections[connectionIndex];
             
-            // Check for wire failure
             if (connection.classList.contains('broken')) {
                 DOM.status.textContent = `Message failed: Wire between PC${currentNode} and PC${path[i + 1]} is broken!`;
+                showToast(`Message failed: Wire between PC${currentNode} and PC${path[i + 1]} is broken`, false);
                 addMessageToHistory(`Message failed: Wire between PC${currentNode} and PC${path[i + 1]} is broken`, false);
                 NetworkState.messagesFailed++;
                 updateStats();
@@ -327,12 +390,20 @@ async function sendMessage() {
                 return;
             }
             
-            // Animate data packet
+            if (NetworkState.nodes[path[i + 1]].classList.contains('powered-off')) {
+                DOM.status.textContent = `Message failed: PC${path[i + 1]} is powered off!`;
+                showToast(`Message failed: PC${path[i + 1]} is powered off`, false);
+                addMessageToHistory(`Message failed: PC${path[i + 1]} is powered off`, false);
+                NetworkState.messagesFailed++;
+                updateStats();
+                setTimeout(resetNetwork, 2000);
+                return;
+            }
+            
             connection.classList.add('active');
             const dataPacket = connection.querySelector('.data-packet');
             dataPacket.style.display = 'block';
             
-            // Set animation direction
             if (direction === -1) {
                 dataPacket.style.transform = 'translate(50%, -50%) scaleX(-1)';
             } else {
@@ -342,7 +413,6 @@ async function sendMessage() {
             dataPacket.classList.add('moving');
             DOM.status.textContent = `Message passing through PC${currentNode}...`;
             
-            // Apply speed setting
             const speed = parseFloat(DOM.speedSlider.value);
             await sleep(1000 / speed);
             dataPacket.classList.remove('moving');
@@ -351,6 +421,7 @@ async function sendMessage() {
     }
     
     DOM.status.textContent = `Message successfully delivered from PC${fromNode} to PC${toNode}!`;
+    showToast(`Message successfully delivered from PC${fromNode} to PC${toNode}`, true);
     addMessageToHistory(`Message successfully delivered from PC${fromNode} to PC${toNode}`, true);
     updateStats();
     setTimeout(resetNetwork, 2000);
@@ -360,22 +431,18 @@ async function sendMessage() {
  * Toggles all nodes between on and off states
  */
 function toggleAllNodes() {
-    // Check if any nodes are powered off
     const anyPoweredOff = Object.values(NetworkState.nodes)
         .some(node => node.classList.contains('powered-off'));
     
-    // Toggle all nodes to the opposite state
     Object.keys(NetworkState.nodes).forEach(nodeId => {
         const node = NetworkState.nodes[nodeId];
         const isPoweredOff = node.classList.contains('powered-off');
         
-        // Only toggle if the current state doesn't match the desired state
         if ((anyPoweredOff && isPoweredOff) || (!anyPoweredOff && !isPoweredOff)) {
             toggleNodePower(nodeId);
         }
     });
     
-    // Update button appearance
     const toggleBtn = document.getElementById('toggleAllBtn');
     if (anyPoweredOff) {
         toggleBtn.className = 'btn btn-success w-100';
@@ -385,15 +452,20 @@ function toggleAllNodes() {
         toggleBtn.innerHTML = '<i class="fas fa-power-off me-2"></i>All PCs Off';
     }
     
-    // Update status message
     const newState = anyPoweredOff ? 'on' : 'off';
     DOM.status.textContent = `All PCs powered ${newState}`;
+    showToast(`All PCs powered ${newState}`, true);
     addMessageToHistory(`All PCs powered ${newState}`, true);
 }
 
 // Event Listeners
 DOM.speedSlider.addEventListener('input', () => {
-    DOM.speedValue.textContent = `${DOM.speedSlider.value}x`;
+    const value = DOM.speedSlider.value;
+    DOM.speedValue.textContent = `${value}x`;
+    
+    // Calculate and set the progress width
+    const percentage = ((value - DOM.speedSlider.min) / (DOM.speedSlider.max - DOM.speedSlider.min)) * 100;
+    DOM.speedSlider.style.setProperty('--range-progress', `${percentage}%`);
 });
 
 // Initialize the network
@@ -406,4 +478,29 @@ function initializeNetwork() {
 
 // Start the network
 initializeNetwork();
+
+function createParticles(element) {
+    const container = document.createElement('div');
+    container.className = 'particle-container';
+    element.appendChild(container);
+
+    // Create 50 particles (increased from 30)
+    for (let i = 0; i < 50; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'particle';
+        
+        // Random angle for particle movement
+        const angle = Math.random() * 360;
+        const distance = 30 + Math.random() * 50; // Increased distance range
+        
+        particle.style.setProperty('--angle', `${angle}deg`);
+        particle.style.setProperty('--x', `${distance}px`);
+        particle.style.setProperty('--y', `${distance}px`);
+        
+        // Random delay for particle animation
+        particle.style.animationDelay = `${Math.random() * 2}s`; // Increased delay range
+        
+        container.appendChild(particle);
+    }
+}
 
