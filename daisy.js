@@ -685,73 +685,57 @@ function getRandomNodePair(min, max) {
 }
 
 /**
- * Simulates a collision scenario in the network
- * This demonstrates what happens when multiple nodes try to transmit simultaneously
+ * Runs a demo simulation of the network
  */
-async function simulateCollision() {
+async function runDemoSimulation() {
     // Get all powered-on nodes
     const activeNodes = Object.entries(NetworkState.nodes)
         .filter(([_, node]) => !node.classList.contains('powered-off'))
         .map(([id]) => parseInt(id));
 
-    if (activeNodes.length < 3) {
-        DOM.status.textContent = 'Need at least 3 powered-on nodes to demonstrate collision!';
-        addMessageToHistory('Failed to simulate collision: Not enough active nodes', false);
+    if (activeNodes.length < 2) {
+        DOM.status.textContent = 'Need at least 2 powered-on nodes for demo!';
+        addMessageToHistory('Failed to start demo: Not enough active nodes', false);
         return;
     }
 
-    // Reset network state
-    resetNetwork();
+    // Start token passing if not already active
+    if (!TokenState.isActive) {
+        startTokenPassing();
+    }
+
+    // Run demo for 30 seconds
+    const endTime = Date.now() + 30000;
     
-    // Get random node pairs from active nodes
-    const shuffled = [...activeNodes].sort(() => Math.random() - 0.5);
-    const [node1, node2, node3, node4] = shuffled.slice(0, 4);
+    while (Date.now() < endTime) {
+        // Wait for token to be at a node
+        await sleep(1000); // Check every second
+        
+        // Only proceed if token passing is active and we have a current node
+        if (TokenState.isActive && TokenState.currentNode) {
+            const sourceNode = TokenState.currentNode;
+            
+            // Get a random destination node that's different from source
+            let destinationNode;
+            do {
+                destinationNode = activeNodes[Math.floor(Math.random() * activeNodes.length)];
+            } while (destinationNode === sourceNode);
+            
+            // Set the source and destination in the UI
+            DOM.sourceNode.value = sourceNode;
+            DOM.destinationNode.value = destinationNode;
+            
+            // Try to send message
+            await sendMessage();
+            
+            // Wait for token to move to next node
+            await sleep(TokenState.interval);
+        }
+    }
     
-    // Add initial message about collision simulation
-    addMessageToHistory(`Simulating collision between PC${node1}→PC${node2} and PC${node3}→PC${node4}`, true);
-    DOM.status.textContent = 'Simulating network collision...';
-
-    // Activate both source nodes
-    NetworkState.nodes[node1].classList.add('active');
-    NetworkState.nodes[node3].classList.add('active');
-
-    // Get the connections that will be involved
-    const connection1 = NetworkState.connections[Math.min(node1, node2) - 1];
-    const connection2 = NetworkState.connections[Math.min(node3, node4) - 1];
-
-    // Activate both connections
-    connection1.classList.add('active');
-    connection2.classList.add('active');
-
-    // Show data packets on both connections
-    const packet1 = connection1.querySelector('.data-packet');
-    const packet2 = connection2.querySelector('.data-packet');
-    
-    packet1.style.display = 'block';
-    packet2.style.display = 'block';
-
-    // Add collision effect
-    packet1.style.backgroundColor = 'var(--danger)';
-    packet2.style.backgroundColor = 'var(--danger)';
-
-    // Animate packets
-    packet1.classList.add('moving');
-    packet2.classList.add('moving');
-
-    // Wait for animation
-    await sleep(1500);
-
-    // Show collision result
-    DOM.status.textContent = 'Collision detected! Data packets corrupted.';
-    addMessageToHistory('Collision occurred: Data packets corrupted', false);
-    NetworkState.messagesFailed += 2;
-    updateStats();
-
-    // Reset after delay
-    setTimeout(() => {
-        resetNetwork();
-        packet1.style.backgroundColor = 'var(--success)';
-        packet2.style.backgroundColor = 'var(--success)';
-    }, 2000);
+    // Stop token passing after demo
+    stopTokenPassing();
+    DOM.status.textContent = 'Demo simulation completed!';
+    addMessageToHistory('Demo simulation completed', true);
 }
 

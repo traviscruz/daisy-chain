@@ -44,6 +44,14 @@ body {
     margin-bottom: 0.6rem;
 }
 
+.header .d-flex {
+    justify-content: center;
+}
+
+.header .btn {
+    min-width: 200px;
+}
+
 .network-container {
     position: relative;
     padding: 1.2rem 0 0 0;
@@ -289,12 +297,19 @@ body {
     display: flex;
     flex-direction: column;
     min-height: 0;
+    max-height: 300px;
+    overflow-y: auto;
+    border: 0.8px solid #eee;
+    border-radius: 0.4rem;
+    background: #fff;
+    margin-top: 0.8rem;
 }
 
 .message-list {
     flex: 1;
     overflow-y: auto;
     min-height: 0;
+    padding: 0 0.8rem 0.8rem;
 }
 
 .card {
@@ -685,25 +700,12 @@ body {
     box-shadow: 0 0 5px rgba(0,0,0,0.2);
 }
 
-.message-history {
-    max-height: 160px;
-    overflow-y: auto;
-    border: 0.8px solid #eee;
-    border-radius: 0.4rem;
-    background: #fff;
-    margin-top: 0.8rem;
-}
-
 .message-history h6 {
     padding: 0.8rem 0.8rem 0;
     margin-bottom: 0.4rem;
     font-size: 0.88rem;
     color: var(--primary);
     font-weight: 600;
-}
-
-.message-list {
-    padding: 0 0.8rem 0.8rem;
 }
 
 .message-item {
