@@ -13,9 +13,20 @@
     <div class="fullscreen-container">
         <div class="header">
             <h1><i class="fas fa-network-wired me-3"></i>Daisy Chain Network</h1>
-            <button class="btn btn-info ms-3" data-bs-toggle="modal" data-bs-target="#topologyInfoModal">
-                <i class="fas fa-info-circle me-2"></i>About Topology
-            </button>
+            <div class="d-flex gap-2">
+                <button class="btn btn-info" data-bs-toggle="modal" data-bs-target="#topologyInfoModal">
+                    <i class="fas fa-info-circle me-2"></i>About Daisy Chain Topology
+                </button>
+                <button class="btn btn-primary" onclick="runDemo()">
+                    <i class="fas fa-play-circle me-2"></i>Run Demo
+                </button>
+                <button class="btn btn-warning" onclick="runFailureSimulation()">
+                    <i class="fas fa-bug me-2"></i>Failure Simulation
+                </button>
+                <button class="btn btn-danger" onclick="runStressTest()">
+                    <i class="fas fa-bolt me-2"></i>Stress Test
+                </button>
+            </div>
         </div>
         
         <!-- Topology Info Modal -->

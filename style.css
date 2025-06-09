@@ -261,6 +261,42 @@ body {
     box-shadow: 0 1.6px 8px rgba(0, 0, 0, 0.1);
 }
 
+.controls-panel .card {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.controls-panel .card-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.message-controls {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.network-stats {
+    margin-top: auto;
+}
+
+.message-history {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.message-list {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
 .card {
     background: #fff !important;
     border: 0.8px solid #eee !important;
@@ -677,6 +713,12 @@ body {
     display: flex;
     align-items: center;
     gap: 0.4rem;
+}
+
+.message-item .timestamp {
+    color: #666;
+    font-size: 0.6rem;
+    font-family: monospace;
 }
 
 .message-item:last-child {

@@ -77,7 +77,7 @@ function createNode(id) {
     
     const label = document.createElement('span');
     label.className = 'node-label';
-    label.textContent = `PC${id}`;
+    label.textContent = `PC ${id}`;
     
     node.appendChild(powerToggle);
     node.appendChild(monitor);
@@ -134,8 +134,14 @@ function updateStats() {
 function addMessageToHistory(message, isSuccess) {
     const messageItem = document.createElement('div');
     messageItem.className = `message-item ${isSuccess ? 'success' : 'error'}`;
+    
+    // Get current date and time
+    const now = new Date();
+    const timestamp = now.toLocaleString();
+    
     messageItem.innerHTML = `
         <i class="fas fa-${isSuccess ? 'check-circle' : 'times-circle'}"></i>
+        <span class="timestamp">[${timestamp}]</span>
         <span>${message}</span>
     `;
     DOM.messageHistory.insertBefore(messageItem, DOM.messageHistory.firstChild);
@@ -301,6 +307,24 @@ function toggleAllNodes() {
 }
 
 /**
+ * Scrolls the network view to center a specific node
+ * @param {number} nodeId - The ID of the node to scroll to
+ */
+function scrollToNode(nodeId) {
+    const networkWrapper = document.querySelector('.network-wrapper');
+    const node = NetworkState.nodes[nodeId];
+    if (networkWrapper && node) {
+        const nodeRect = node.getBoundingClientRect();
+        const wrapperRect = networkWrapper.getBoundingClientRect();
+        const scrollLeft = nodeRect.left - wrapperRect.left - (wrapperRect.width - nodeRect.width) / 2;
+        networkWrapper.scrollTo({
+            left: networkWrapper.scrollLeft + scrollLeft,
+            behavior: 'smooth'
+        });
+    }
+}
+
+/**
  * Sends a message through the network
  */
 async function sendMessage() {
@@ -314,15 +338,15 @@ async function sendMessage() {
     }
     
     if (NetworkState.nodes[fromNode].classList.contains('powered-off')) {
-        DOM.status.textContent = `Cannot send message: PC${fromNode} is powered off!`;
-        addMessageToHistory(`Failed to send message: PC${fromNode} is powered off`, false);
+        DOM.status.textContent = `Cannot send message: PC ${fromNode} is powered off!`;
+        addMessageToHistory(`Failed to send message: PC ${fromNode} is powered off`, false);
         NetworkState.messagesFailed++;
         updateStats();
         return;
     }
     if (NetworkState.nodes[toNode].classList.contains('powered-off')) {
-        DOM.status.textContent = `Cannot send message: PC${toNode} is powered off!`;
-        addMessageToHistory(`Failed to send message: PC${toNode} is powered off`, false);
+        DOM.status.textContent = `Cannot send message: PC ${toNode} is powered off!`;
+        addMessageToHistory(`Failed to send message: PC ${toNode} is powered off`, false);
         NetworkState.messagesFailed++;
         updateStats();
         return;
@@ -331,18 +355,28 @@ async function sendMessage() {
     resetNetwork();
     NetworkState.messagesSent++;
     
+    // Add initial message about sending
+    addMessageToHistory(`Initiated sending from PC ${fromNode} to PC ${toNode}`, true);
+    
     const direction = fromNode < toNode ? 1 : -1;
     const path = [];
     for (let i = fromNode; i !== toNode + direction; i += direction) {
         path.push(i);
     }
     
+    // Scroll to the source node first
+    scrollToNode(fromNode);
+    await sleep(500); // Wait for scroll to complete
+    
     for (let i = 0; i < path.length; i++) {
         const currentNode = path[i];
         
+        // Scroll to the current node
+        scrollToNode(currentNode);
+        
         if (NetworkState.nodes[currentNode].classList.contains('powered-off')) {
-            DOM.status.textContent = `Message failed: PC${currentNode} is powered off!`;
-            addMessageToHistory(`Message failed: PC${currentNode} is powered off`, false);
+            DOM.status.textContent = `Message failed: PC ${currentNode} is powered off!`;
+            addMessageToHistory(`Message failed: PC ${currentNode} is powered off`, false);
             NetworkState.messagesFailed++;
             updateStats();
             setTimeout(resetNetwork, 2000);
@@ -356,8 +390,8 @@ async function sendMessage() {
             const connection = NetworkState.connections[connectionIndex];
             
             if (connection.classList.contains('broken')) {
-                DOM.status.textContent = `Message failed: Wire between PC${currentNode} and PC${path[i + 1]} is broken!`;
-                addMessageToHistory(`Message failed: Wire between PC${currentNode} and PC${path[i + 1]} is broken`, false);
+                DOM.status.textContent = `Message failed: Wire between PC ${currentNode} and PC ${path[i + 1]} is broken!`;
+                addMessageToHistory(`Message failed: Wire between PC ${currentNode} and PC ${path[i + 1]} is broken`, false);
                 NetworkState.messagesFailed++;
                 updateStats();
                 setTimeout(resetNetwork, 2000);
@@ -365,8 +399,8 @@ async function sendMessage() {
             }
             
             if (NetworkState.nodes[path[i + 1]].classList.contains('powered-off')) {
-                DOM.status.textContent = `Message failed: PC${path[i + 1]} is powered off!`;
-                addMessageToHistory(`Message failed: PC${path[i + 1]} is powered off`, false);
+                DOM.status.textContent = `Message failed: PC ${path[i + 1]} is powered off!`;
+                addMessageToHistory(`Message failed: PC ${path[i + 1]} is powered off`, false);
                 NetworkState.messagesFailed++;
                 updateStats();
                 setTimeout(resetNetwork, 2000);
@@ -384,7 +418,7 @@ async function sendMessage() {
             }
             
             dataPacket.classList.add('moving');
-            DOM.status.textContent = `Message passing through PC${currentNode}...`;
+            DOM.status.textContent = `Message passing through PC ${currentNode}...`;
             
             const speed = parseFloat(DOM.speedSlider.value);
             await sleep(1000 / speed);
@@ -393,8 +427,11 @@ async function sendMessage() {
         }
     }
     
-    DOM.status.textContent = `Message successfully delivered from PC${fromNode} to PC${toNode}!`;
-    addMessageToHistory(`Message successfully delivered from PC${fromNode} to PC${toNode}`, true);
+    // Scroll to the destination node at the end
+    scrollToNode(toNode);
+    
+    DOM.status.textContent = `Message successfully delivered from PC ${fromNode} to PC ${toNode}!`;
+    addMessageToHistory(`Message successfully delivered from PC ${fromNode} to PC ${toNode}`, true);
     updateStats();
     setTimeout(resetNetwork, 2000);
 }
@@ -469,11 +506,140 @@ function getRandomDirection() {
  * Utility function to get random node IDs within range
  * @param {number} min - Minimum node ID
  * @param {number} max - Maximum node ID
- * @returns {number[]} Array of two random node IDs
+ * @returns {number[]} Array of two different random node IDs
  */
 function getRandomNodePair(min, max) {
     const nodes = Array.from({length: max - min + 1}, (_, i) => i + min);
     const shuffled = nodes.sort(() => Math.random() - 0.5);
+    // Ensure we get two different nodes
     return [shuffled[0], shuffled[1]];
+}
+
+/**
+ * Runs a demonstration of the daisy chain topology features with three distinct scenarios
+ */
+async function runDemo() {
+    // Reset the network first
+    resetNetwork();
+    
+    // Disable the demo button during the demo
+    const demoBtn = document.querySelector('button[onclick="runDemo()"]');
+    demoBtn.disabled = true;
+    
+    try {
+        // Initialize network with 5 nodes
+        DOM.status.textContent = "Initializing network...";
+        addMessageToHistory("Starting daisy chain topology demo", true);
+        while (NetworkState.nodeCount < 5) {
+            addNode();
+            await sleep(1000);
+        }
+        await sleep(2000);
+
+        // Scenario 1: Perfect transmission
+        DOM.status.textContent = "Scenario 1: Perfect transmission with no failures";
+        addMessageToHistory("Starting Scenario 1: Perfect transmission", true);
+        await sleep(2000);
+
+        // Get random source and destination nodes
+        let [fromNode1, toNode1] = getRandomNodePair(1, 5);
+        // Ensure different nodes
+        while (fromNode1 === toNode1) {
+            [fromNode1, toNode1] = getRandomNodePair(1, 5);
+        }
+        DOM.fromNode.value = fromNode1;
+        DOM.toNode.value = toNode1;
+        
+        DOM.status.textContent = `Sending message from PC${fromNode1} to PC${toNode1}...`;
+        await sendMessage();
+        await sleep(3000);
+
+        // Scenario 2: Node power failure
+        DOM.status.textContent = "Scenario 2: Node power failure demonstration";
+        addMessageToHistory("Starting Scenario 2: Node power failure", true);
+        await sleep(2000);
+
+        // Get new random nodes
+        let [fromNode2, toNode2] = getRandomNodePair(1, 5);
+        // Ensure different nodes
+        while (fromNode2 === toNode2) {
+            [fromNode2, toNode2] = getRandomNodePair(1, 5);
+        }
+        DOM.fromNode.value = fromNode2;
+        DOM.toNode.value = toNode2;
+
+        // Find a node in the path that's not source or destination
+        const path = [];
+        const direction = fromNode2 < toNode2 ? 1 : -1;
+        for (let i = fromNode2; i !== toNode2 + direction; i += direction) {
+            path.push(i);
+        }
+        const middleNode = path[Math.floor(path.length / 2)];
+        
+        DOM.status.textContent = `Powering off PC${middleNode} to demonstrate failure...`;
+        toggleNodePower(middleNode);
+        await sleep(2000);
+
+        DOM.status.textContent = `Attempting transmission from PC${fromNode2} to PC${toNode2}...`;
+        await sendMessage();
+        await sleep(3000);
+
+        // Power the node back on
+        DOM.status.textContent = `Powering PC${middleNode} back on...`;
+        toggleNodePower(middleNode);
+        await sleep(2000);
+
+        // Scenario 3: Wire failure
+        DOM.status.textContent = "Scenario 3: Wire failure demonstration";
+        addMessageToHistory("Starting Scenario 3: Wire failure", true);
+        await sleep(2000);
+
+        // Get new random nodes
+        let [fromNode3, toNode3] = getRandomNodePair(1, 5);
+        // Ensure different nodes
+        while (fromNode3 === toNode3) {
+            [fromNode3, toNode3] = getRandomNodePair(1, 5);
+        }
+        DOM.fromNode.value = fromNode3;
+        DOM.toNode.value = toNode3;
+
+        // Find a connection in the path
+        const path3 = [];
+        const direction3 = fromNode3 < toNode3 ? 1 : -1;
+        for (let i = fromNode3; i !== toNode3 + direction3; i += direction3) {
+            path3.push(i);
+        }
+        const middleConnectionIndex = Math.min(path3[Math.floor(path3.length / 2)], path3[Math.floor(path3.length / 2) + 1]) - 1;
+        const connection = NetworkState.connections[middleConnectionIndex];
+        
+        DOM.status.textContent = `Breaking wire between PC${path3[Math.floor(path3.length / 2)]} and PC${path3[Math.floor(path3.length / 2) + 1]}...`;
+        toggleWireFailure(connection);
+        await sleep(2000);
+
+        DOM.status.textContent = `Attempting transmission from PC${fromNode3} to PC${toNode3}...`;
+        await sendMessage();
+        await sleep(3000);
+
+        // Repair the wire
+        DOM.status.textContent = `Repairing wire between PC${path3[Math.floor(path3.length / 2)]} and PC${path3[Math.floor(path3.length / 2) + 1]}...`;
+        toggleWireFailure(connection);
+        await sleep(2000);
+
+        // Final successful transmission
+        DOM.status.textContent = "Performing final successful transmission...";
+        await sendMessage();
+        await sleep(2000);
+
+        // Demo complete
+        DOM.status.textContent = "Demo complete! You can now try these features yourself.";
+        addMessageToHistory("Demo completed successfully", true);
+    } catch (error) {
+        console.error("Demo error:", error);
+        DOM.status.textContent = "Demo encountered an error. Please try again.";
+        addMessageToHistory("Demo failed: " + error.message, false);
+    } finally {
+        // Re-enable the demo button
+        demoBtn.disabled = false;
+    }
 }
 
