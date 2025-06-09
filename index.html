@@ -17,15 +17,6 @@
                 <button class="btn btn-info" data-bs-toggle="modal" data-bs-target="#topologyInfoModal">
                     <i class="fas fa-info-circle me-2"></i>About Daisy Chain Topology
                 </button>
-                <button class="btn btn-primary" onclick="runDemo()">
-                    <i class="fas fa-play-circle me-2"></i>Run Demo
-                </button>
-                <button class="btn btn-warning" onclick="runFailureSimulation()">
-                    <i class="fas fa-bug me-2"></i>Failure Simulation
-                </button>
-                <button class="btn btn-danger" onclick="runStressTest()">
-                    <i class="fas fa-bolt me-2"></i>Stress Test
-                </button>
             </div>
         </div>
         
@@ -109,11 +100,11 @@
                             </h5>
                             <div class="message-controls d-flex flex-column gap-3">
                                 <div class="d-flex align-items-center gap-3">
-                                    <select id="fromNode" class="form-select">
+                                    <select id="sourceNode" class="form-select">
                                         <!-- Options will be added dynamically -->
                                     </select>
                                     <i class="fas fa-arrow-right"></i>
-                                    <select id="toNode" class="form-select">
+                                    <select id="destinationNode" class="form-select">
                                         <!-- Options will be added dynamically -->
                                     </select>
                                 </div>
