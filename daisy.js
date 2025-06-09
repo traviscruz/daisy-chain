@@ -146,47 +146,6 @@ function addMessageToHistory(message, isSuccess) {
 }
 
 /**
- * Shows a toast notification
- * @param {string} message - The message to display
- * @param {boolean} isSuccess - Whether the message represents a success or failure
- */
-function showToast(message, isSuccess) {
-    const toastContainer = document.querySelector('.toast-container');
-    const toast = document.createElement('div');
-    toast.className = `toast ${isSuccess ? 'success' : 'error'}`;
-    toast.setAttribute('role', 'alert');
-    toast.setAttribute('aria-live', 'assertive');
-    toast.setAttribute('aria-atomic', 'true');
-    
-    const icon = isSuccess ? 'check-circle' : 'times-circle';
-    const iconClass = isSuccess ? 'success-icon' : 'error-icon';
-    
-    toast.innerHTML = `
-        <div class="toast-header">
-            <i class="fas fa-${icon} ${iconClass} me-2"></i>
-            <strong class="me-auto">${isSuccess ? 'Success' : 'Error'}</strong>
-            <button type="button" class="btn-close toast-close" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>
-        <div class="toast-body">
-            ${message}
-        </div>
-    `;
-    
-    toastContainer.appendChild(toast);
-    const bsToast = new bootstrap.Toast(toast, {
-        autohide: true,
-        delay: 3000
-    });
-    
-    bsToast.show();
-    
-    // Remove the toast element after it's hidden
-    toast.addEventListener('hidden.bs.toast', () => {
-        toast.remove();
-    });
-}
-
-/**
  * Toggles the power state of a node
  * @param {number} nodeId - The ID of the node to toggle
  */
@@ -197,12 +156,10 @@ function toggleNodePower(nodeId) {
     if (isPoweredOff) {
         node.classList.remove('powered-off');
         DOM.status.textContent = `PC${nodeId} powered on`;
-        showToast(`PC${nodeId} powered on`, true);
         addMessageToHistory(`PC${nodeId} powered on`, true);
     } else {
         node.classList.add('powered-off');
         DOM.status.textContent = `PC${nodeId} powered off`;
-        showToast(`PC${nodeId} powered off`, true);
         addMessageToHistory(`PC${nodeId} powered off`, true);
     }
     
@@ -220,12 +177,10 @@ function toggleWireFailure(connection) {
     if (isBroken) {
         connection.classList.remove('broken');
         DOM.status.textContent = 'Wire repaired';
-        showToast('Wire repaired', true);
         addMessageToHistory('Wire repaired', true);
     } else {
         connection.classList.add('broken');
         DOM.status.textContent = 'Wire broken';
-        showToast('Wire broken', true);
         addMessageToHistory('Wire broken', true);
     }
     
@@ -251,7 +206,6 @@ function updateSelects() {
 function addNode() {
     if (NetworkState.nodeCount >= 10) {
         DOM.status.textContent = 'Maximum number of nodes (10) reached!';
-        showToast('Failed to add node: Maximum limit reached', false);
         addMessageToHistory('Failed to add node: Maximum limit reached', false);
         return;
     }
@@ -271,7 +225,6 @@ function addNode() {
     updateSelects();
     updateStats();
     DOM.status.textContent = `Node PC${NetworkState.nodeCount} added successfully!`;
-    showToast(`Node PC${NetworkState.nodeCount} added successfully`, true);
     addMessageToHistory(`Node PC${NetworkState.nodeCount} added successfully`, true);
 }
 
@@ -281,7 +234,6 @@ function addNode() {
 function removeNode() {
     if (NetworkState.nodeCount <= 2) {
         DOM.status.textContent = 'Cannot remove node. Minimum 2 nodes required!';
-        showToast('Failed to remove node: Minimum limit reached', false);
         addMessageToHistory('Failed to remove node: Minimum limit reached', false);
         return;
     }
@@ -299,7 +251,6 @@ function removeNode() {
     updateSelects();
     updateStats();
     DOM.status.textContent = `Node PC${NetworkState.nodeCount + 1} removed successfully!`;
-    showToast(`Node PC${NetworkState.nodeCount + 1} removed successfully`, true);
     addMessageToHistory(`Node PC${NetworkState.nodeCount + 1} removed successfully`, true);
 }
 
@@ -330,14 +281,12 @@ async function sendMessage() {
     
     if (fromNode === toNode) {
         DOM.status.textContent = 'Cannot send message to the same node!';
-        showToast('Failed to send message: Same source and destination', false);
         addMessageToHistory('Failed to send message: Same source and destination', false);
         return;
     }
     
     if (NetworkState.nodes[fromNode].classList.contains('powered-off')) {
         DOM.status.textContent = `Cannot send message: PC${fromNode} is powered off!`;
-        showToast(`Failed to send message: PC${fromNode} is powered off`, false);
         addMessageToHistory(`Failed to send message: PC${fromNode} is powered off`, false);
         NetworkState.messagesFailed++;
         updateStats();
@@ -345,7 +294,6 @@ async function sendMessage() {
     }
     if (NetworkState.nodes[toNode].classList.contains('powered-off')) {
         DOM.status.textContent = `Cannot send message: PC${toNode} is powered off!`;
-        showToast(`Failed to send message: PC${toNode} is powered off`, false);
         addMessageToHistory(`Failed to send message: PC${toNode} is powered off`, false);
         NetworkState.messagesFailed++;
         updateStats();
@@ -366,7 +314,6 @@ async function sendMessage() {
         
         if (NetworkState.nodes[currentNode].classList.contains('powered-off')) {
             DOM.status.textContent = `Message failed: PC${currentNode} is powered off!`;
-            showToast(`Message failed: PC${currentNode} is powered off`, false);
             addMessageToHistory(`Message failed: PC${currentNode} is powered off`, false);
             NetworkState.messagesFailed++;
             updateStats();
@@ -382,7 +329,6 @@ async function sendMessage() {
             
             if (connection.classList.contains('broken')) {
                 DOM.status.textContent = `Message failed: Wire between PC${currentNode} and PC${path[i + 1]} is broken!`;
-                showToast(`Message failed: Wire between PC${currentNode} and PC${path[i + 1]} is broken`, false);
                 addMessageToHistory(`Message failed: Wire between PC${currentNode} and PC${path[i + 1]} is broken`, false);
                 NetworkState.messagesFailed++;
                 updateStats();
@@ -392,7 +338,6 @@ async function sendMessage() {
             
             if (NetworkState.nodes[path[i + 1]].classList.contains('powered-off')) {
                 DOM.status.textContent = `Message failed: PC${path[i + 1]} is powered off!`;
-                showToast(`Message failed: PC${path[i + 1]} is powered off`, false);
                 addMessageToHistory(`Message failed: PC${path[i + 1]} is powered off`, false);
                 NetworkState.messagesFailed++;
                 updateStats();
@@ -421,7 +366,6 @@ async function sendMessage() {
     }
     
     DOM.status.textContent = `Message successfully delivered from PC${fromNode} to PC${toNode}!`;
-    showToast(`Message successfully delivered from PC${fromNode} to PC${toNode}`, true);
     addMessageToHistory(`Message successfully delivered from PC${fromNode} to PC${toNode}`, true);
     updateStats();
     setTimeout(resetNetwork, 2000);
@@ -454,7 +398,6 @@ function toggleAllNodes() {
     
     const newState = anyPoweredOff ? 'on' : 'off';
     DOM.status.textContent = `All PCs powered ${newState}`;
-    showToast(`All PCs powered ${newState}`, true);
     addMessageToHistory(`All PCs powered ${newState}`, true);
 }
 
@@ -503,4 +446,310 @@ function createParticles(element) {
         container.appendChild(particle);
     }
 }
+
+/**
+ * Utility function to get random direction (left-to-right or right-to-left)
+ * @returns {number} 1 for left-to-right, -1 for right-to-left
+ */
+function getRandomDirection() {
+    return Math.random() < 0.5 ? 1 : -1;
+}
+
+/**
+ * Utility function to get random node IDs within range
+ * @param {number} min - Minimum node ID
+ * @param {number} max - Maximum node ID
+ * @returns {number[]} Array of two random node IDs
+ */
+function getRandomNodePair(min, max) {
+    const nodes = Array.from({length: max - min + 1}, (_, i) => i + min);
+    const shuffled = nodes.sort(() => Math.random() - 0.5);
+    return [shuffled[0], shuffled[1]];
+}
+
+/**
+ * Simulation Scenarios
+ * Demonstrates different network behaviors and failure modes
+ */
+
+const SimulationScenarios = {
+    // Scenario 1: Basic message passing with random directions
+    basicMessagePassing: async () => {
+        // Reset network to initial state
+        while (NetworkState.nodeCount > 2) {
+            removeNode();
+        }
+        
+        // Ensure all nodes are powered on
+        Object.keys(NetworkState.nodes).forEach(nodeId => {
+            if (NetworkState.nodes[nodeId].classList.contains('powered-off')) {
+                toggleNodePower(nodeId);
+            }
+        });
+        
+        // Send multiple messages in random directions
+        for (let i = 0; i < 3; i++) {
+            const [from, to] = getRandomNodePair(1, 2);
+            DOM.fromNode.value = from.toString();
+            DOM.toNode.value = to.toString();
+            await sendMessage();
+            await sleep(2000);
+        }
+    },
+    
+    // Scenario 2: Power failure demonstration with random patterns
+    powerFailure: async () => {
+        // Reset network to 4 nodes
+        while (NetworkState.nodeCount > 4) {
+            removeNode();
+        }
+        while (NetworkState.nodeCount < 4) {
+            addNode();
+        }
+        
+        // Ensure all nodes are powered on initially
+        Object.keys(NetworkState.nodes).forEach(nodeId => {
+            if (NetworkState.nodes[nodeId].classList.contains('powered-off')) {
+                toggleNodePower(nodeId);
+            }
+        });
+        
+        // Send initial message in random direction
+        const [from, to] = getRandomNodePair(1, 4);
+        DOM.fromNode.value = from.toString();
+        DOM.toNode.value = to.toString();
+        await sendMessage();
+        await sleep(2000);
+        
+        // Randomly power off nodes and test communication
+        for (let i = 0; i < 3; i++) {
+            const randomNode = Math.floor(Math.random() * 4) + 1;
+            toggleNodePower(randomNode);
+            await sleep(1000);
+            
+            // Try sending message in random direction
+            const [newFrom, newTo] = getRandomNodePair(1, 4);
+            DOM.fromNode.value = newFrom.toString();
+            DOM.toNode.value = newTo.toString();
+            await sendMessage();
+            await sleep(2000);
+            
+            // Power the node back on
+            toggleNodePower(randomNode);
+            await sleep(1000);
+        }
+    },
+    
+    // Scenario 3: Wire failure demonstration with random patterns
+    wireFailure: async () => {
+        // Reset network to 4 nodes
+        while (NetworkState.nodeCount > 4) {
+            removeNode();
+        }
+        while (NetworkState.nodeCount < 4) {
+            addNode();
+        }
+        
+        // Ensure all nodes are powered on
+        Object.keys(NetworkState.nodes).forEach(nodeId => {
+            if (NetworkState.nodes[nodeId].classList.contains('powered-off')) {
+                toggleNodePower(nodeId);
+            }
+        });
+        
+        // Send initial message in random direction
+        const [from, to] = getRandomNodePair(1, 4);
+        DOM.fromNode.value = from.toString();
+        DOM.toNode.value = to.toString();
+        await sendMessage();
+        await sleep(2000);
+        
+        // Randomly break and repair wires
+        for (let i = 0; i < 3; i++) {
+            const randomWire = Math.floor(Math.random() * NetworkState.connections.length);
+            NetworkState.connections[randomWire].classList.add('broken');
+            await sleep(1000);
+            
+            // Try sending message in random direction
+            const [newFrom, newTo] = getRandomNodePair(1, 4);
+            DOM.fromNode.value = newFrom.toString();
+            DOM.toNode.value = newTo.toString();
+            await sendMessage();
+            await sleep(2000);
+            
+            // Repair the wire
+            NetworkState.connections[randomWire].classList.remove('broken');
+            await sleep(1000);
+        }
+    },
+    
+    // Scenario 4: Network expansion with random patterns
+    networkExpansion: async () => {
+        // Start with 2 nodes
+        while (NetworkState.nodeCount > 2) {
+            removeNode();
+        }
+        
+        // Ensure all nodes are powered on
+        Object.keys(NetworkState.nodes).forEach(nodeId => {
+            if (NetworkState.nodes[nodeId].classList.contains('powered-off')) {
+                toggleNodePower(nodeId);
+            }
+        });
+        
+        // Send message between initial nodes in random direction
+        const [from, to] = getRandomNodePair(1, 2);
+        DOM.fromNode.value = from.toString();
+        DOM.toNode.value = to.toString();
+        await sendMessage();
+        await sleep(2000);
+        
+        // Add nodes one by one and test random communication patterns
+        for (let i = 3; i <= 5; i++) {
+            addNode();
+            await sleep(1000);
+            
+            // Test multiple random communications
+            for (let j = 0; j < 2; j++) {
+                const [newFrom, newTo] = getRandomNodePair(1, i);
+                DOM.fromNode.value = newFrom.toString();
+                DOM.toNode.value = newTo.toString();
+                await sendMessage();
+                await sleep(2000);
+            }
+        }
+    },
+    
+    // Scenario 5: Complex failure scenario with random patterns
+    complexFailure: async () => {
+        // Set up 5 nodes
+        while (NetworkState.nodeCount > 5) {
+            removeNode();
+        }
+        while (NetworkState.nodeCount < 5) {
+            addNode();
+        }
+        
+        // Ensure all nodes are powered on
+        Object.keys(NetworkState.nodes).forEach(nodeId => {
+            if (NetworkState.nodes[nodeId].classList.contains('powered-off')) {
+                toggleNodePower(nodeId);
+            }
+        });
+        
+        // Send initial message in random direction
+        const [from, to] = getRandomNodePair(1, 5);
+        DOM.fromNode.value = from.toString();
+        DOM.toNode.value = to.toString();
+        await sendMessage();
+        await sleep(2000);
+        
+        // Create multiple random failures
+        const failures = [];
+        
+        // Randomly power off 2 nodes
+        for (let i = 0; i < 2; i++) {
+            const randomNode = Math.floor(Math.random() * 5) + 1;
+            if (!failures.includes(randomNode)) {
+                toggleNodePower(randomNode);
+                failures.push(randomNode);
+            }
+        }
+        
+        // Randomly break 2 wires
+        for (let i = 0; i < 2; i++) {
+            const randomWire = Math.floor(Math.random() * NetworkState.connections.length);
+            NetworkState.connections[randomWire].classList.add('broken');
+        }
+        
+        await sleep(1000);
+        
+        // Try sending message in random direction
+        const [newFrom, newTo] = getRandomNodePair(1, 5);
+        DOM.fromNode.value = newFrom.toString();
+        DOM.toNode.value = newTo.toString();
+        await sendMessage();
+        await sleep(2000);
+        
+        // Fix issues one by one in random order
+        const fixes = [...failures, ...NetworkState.connections]
+            .sort(() => Math.random() - 0.5);
+        
+        for (const fix of fixes) {
+            if (typeof fix === 'number') {
+                toggleNodePower(fix);
+            } else {
+                fix.classList.remove('broken');
+            }
+            await sleep(1000);
+            
+            // Test communication after each fix
+            const [testFrom, testTo] = getRandomNodePair(1, 5);
+            DOM.fromNode.value = testFrom.toString();
+            DOM.toNode.value = testTo.toString();
+            await sendMessage();
+            await sleep(2000);
+        }
+    }
+};
+
+/**
+ * Runs a selected simulation scenario
+ * @param {string} scenarioName - Name of the scenario to run
+ */
+async function runSimulation(scenarioName) {
+    if (!SimulationScenarios[scenarioName]) {
+        addMessageToHistory('Invalid scenario selected', false);
+        return;
+    }
+    
+    // Disable controls during simulation
+    const controls = document.querySelectorAll('button, select, input');
+    controls.forEach(control => control.disabled = true);
+    
+    try {
+        await SimulationScenarios[scenarioName]();
+    } catch (error) {
+        console.error('Simulation error:', error);
+        addMessageToHistory('Simulation encountered an error', false);
+    } finally {
+        // Re-enable controls
+        controls.forEach(control => control.disabled = false);
+    }
+}
+
+// Add simulation controls to the UI
+function addSimulationControls() {
+    const simulationHeader = document.createElement('div');
+    simulationHeader.className = 'simulation-header mb-4';
+    simulationHeader.innerHTML = `
+        <h2 class="text-center mb-3">
+            <i class="fas fa-play-circle me-2"></i>Network Simulations
+        </h2>
+        <div class="d-flex justify-content-center gap-3 flex-wrap">
+            <button class="btn btn-primary" onclick="runSimulation('basicMessagePassing')">
+                <i class="fas fa-exchange-alt me-2"></i>Basic Message Passing
+            </button>
+            <button class="btn btn-primary" onclick="runSimulation('powerFailure')">
+                <i class="fas fa-power-off me-2"></i>Power Failure Demo
+            </button>
+            <button class="btn btn-primary" onclick="runSimulation('wireFailure')">
+                <i class="fas fa-plug me-2"></i>Wire Failure Demo
+            </button>
+            <button class="btn btn-primary" onclick="runSimulation('networkExpansion')">
+                <i class="fas fa-expand-alt me-2"></i>Network Expansion
+            </button>
+            <button class="btn btn-primary" onclick="runSimulation('complexFailure')">
+                <i class="fas fa-exclamation-triangle me-2"></i>Complex Failure
+            </button>
+        </div>
+    `;
+    
+    // Insert at the beginning of the controls panel
+    const controlsPanel = document.querySelector('.controls-panel');
+    controlsPanel.insertBefore(simulationHeader, controlsPanel.firstChild);
+}
+
+// Add simulation controls when the page loads
+document.addEventListener('DOMContentLoaded', addSimulationControls);
 
