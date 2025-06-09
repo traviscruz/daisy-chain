@@ -843,3 +843,50 @@ body {
 .alert {
     padding: 0.6rem 0.8rem;
 }
+
+/* Token Passing Protocol Styles */
+.node.has-token {
+    position: relative;
+}
+
+.node.has-token::after {
+    content: '';
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 24px;
+    height: 24px;
+    background: var(--success);
+    border-radius: 50%;
+    border: 2px solid white;
+    box-shadow: 0 0 8px rgba(39, 174, 96, 0.5);
+    animation: tokenPulse 1s infinite;
+}
+
+@keyframes tokenPulse {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 8px rgba(39, 174, 96, 0.5);
+    }
+    50% {
+        transform: scale(1.2);
+        box-shadow: 0 0 12px rgba(39, 174, 96, 0.7);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 8px rgba(39, 174, 96, 0.5);
+    }
+}
+
+.token-controls {
+    background: #f8f9fa;
+    padding: 0.8rem;
+    border-radius: 0.4rem;
+    border: 0.8px solid #eee;
+}
+
+.token-controls h6 {
+    color: var(--primary);
+    font-weight: 600;
+    margin-bottom: 0.8rem;
+}
