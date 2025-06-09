@@ -297,12 +297,32 @@ body {
     display: flex;
     flex-direction: column;
     min-height: 0;
-    max-height: 300px;
+    max-height: 500px !important;
     overflow-y: auto;
     border: 0.8px solid #eee;
     border-radius: 0.4rem;
     background: #fff;
     margin-top: 0.8rem;
+    padding-right: 8px;
+}
+
+/* Add custom scrollbar styles for message history */
+.message-history::-webkit-scrollbar {
+    width: 6px;
+}
+
+.message-history::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.message-history::-webkit-scrollbar-thumb {
+    background: var(--primary);
+    border-radius: 3px;
+}
+
+.message-history::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-light);
 }
 
 .message-list {
@@ -852,31 +872,38 @@ body {
 }
 
 .node.has-token::after {
-    content: '';
+    content: 'T';
     position: absolute;
-    top: -8px;
-    right: -8px;
-    width: 24px;
-    height: 24px;
-    background: var(--success);
+    top: -12px;
+    right: -12px;
+    width: 32px;
+    height: 32px;
+    background: #FFD700; /* Bright gold color */
     border-radius: 50%;
     border: 2px solid white;
-    box-shadow: 0 0 8px rgba(39, 174, 96, 0.5);
+    box-shadow: 0 0 12px rgba(255, 215, 0, 0.7);
     animation: tokenPulse 1s infinite;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: #000;
+    font-size: 16px;
+    z-index: 10;
 }
 
 @keyframes tokenPulse {
     0% {
         transform: scale(1);
-        box-shadow: 0 0 8px rgba(39, 174, 96, 0.5);
+        box-shadow: 0 0 12px rgba(255, 215, 0, 0.7);
     }
     50% {
         transform: scale(1.2);
-        box-shadow: 0 0 12px rgba(39, 174, 96, 0.7);
+        box-shadow: 0 0 16px rgba(255, 215, 0, 0.9);
     }
     100% {
         transform: scale(1);
-        box-shadow: 0 0 8px rgba(39, 174, 96, 0.5);
+        box-shadow: 0 0 12px rgba(255, 215, 0, 0.7);
     }
 }
 
@@ -894,10 +921,38 @@ body {
 }
 
 /* Node Management Panel Styles */
-.node-control-list {
+.node-management-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.node-management-panel #nodeControlList {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    overflow-y: auto;
+    max-height: 450px !important;
+    padding-right: 8px;
+}
+
+/* Add custom scrollbar styles */
+.node-management-panel #nodeControlList::-webkit-scrollbar {
+    width: 6px;
+}
+
+.node-management-panel #nodeControlList::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.node-management-panel #nodeControlList::-webkit-scrollbar-thumb {
+    background: var(--primary);
+    border-radius: 3px;
+}
+
+.node-management-panel #nodeControlList::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-light);
 }
 
 .node-control-item {

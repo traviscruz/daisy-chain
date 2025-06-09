@@ -168,12 +168,12 @@ function toggleNodePower(nodeId) {
     
     if (isPoweredOff) {
         node.classList.remove('powered-off');
-        DOM.status.textContent = `PC${nodeId} powered on`;
-        addMessageToHistory(`PC${nodeId} powered on`, true);
+        DOM.status.textContent = `PC ${nodeId} powered on`;
+        addMessageToHistory(`PC ${nodeId} powered on`, true);
     } else {
         node.classList.add('powered-off');
-        DOM.status.textContent = `PC${nodeId} powered off`;
-        addMessageToHistory(`PC${nodeId} powered off`, true);
+        DOM.status.textContent = `PC ${nodeId} powered off`;
+        addMessageToHistory(`PC ${nodeId} powered off`, true);
     }
     
     updateSelects();
@@ -207,7 +207,7 @@ function toggleWireFailure(connection) {
 function updateSelects() {
     const options = Object.keys(NetworkState.nodes)
         .filter(id => !NetworkState.nodes[id].classList.contains('powered-off'))
-        .map(id => `<option value="${id}">PC${id}</option>`)
+        .map(id => `<option value="${id}">PC ${id}</option>`)
         .join('');
     
     DOM.sourceNode.innerHTML = options;
@@ -261,8 +261,8 @@ function removeNode() {
     NetworkState.nodeCount--;
     updateSelects();
     updateStats();
-    DOM.status.textContent = `Node PC${NetworkState.nodeCount + 1} removed successfully!`;
-    addMessageToHistory(`Node PC${NetworkState.nodeCount + 1} removed successfully`, true);
+    DOM.status.textContent = `Node PC ${NetworkState.nodeCount + 1} removed successfully!`;
+    addMessageToHistory(`Node PC ${NetworkState.nodeCount + 1} removed successfully`, true);
 }
 
 /**
@@ -298,11 +298,11 @@ function toggleAllNodes() {
     
     const toggleBtn = document.getElementById('toggleAllBtn');
     if (anyPoweredOff) {
-        toggleBtn.className = 'btn btn-success w-100 mt-3';
-        toggleBtn.innerHTML = '<i class="fas fa-power-off me-2"></i>All PCs On';
+        toggleBtn.className = 'btn btn-success flex-grow-1';
+        toggleBtn.innerHTML = '<i class="fas fa-power-off me-2"></i>Turn All On';
     } else {
-        toggleBtn.className = 'btn btn-danger w-100 mt-3';
-        toggleBtn.innerHTML = '<i class="fas fa-power-off me-2"></i>All PCs Off';
+        toggleBtn.className = 'btn btn-danger flex-grow-1';
+        toggleBtn.innerHTML = '<i class="fas fa-power-off me-2"></i>Turn All Off';
     }
     
     const newState = anyPoweredOff ? 'on' : 'off';
@@ -428,8 +428,8 @@ function passToken() {
     node.classList.add('has-token');
 
     // Update status
-    DOM.status.textContent = `Token at PC${TokenState.currentNode}`;
-    addMessageToHistory(`Token passed to PC${TokenState.currentNode}`, true);
+    DOM.status.textContent = `Token at PC ${TokenState.currentNode}`;
+    addMessageToHistory(`Token passed to PC ${TokenState.currentNode}`, true);
 
     // Schedule next token pass
     TokenState.timer = setTimeout(passToken, TokenState.interval);
