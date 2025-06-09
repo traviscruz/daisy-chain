@@ -57,6 +57,7 @@ function createNode(id) {
     const node = document.createElement('div');
     node.className = 'node';
     node.id = `node${id}`;
+    node.style.width = 'var(--node-size)';  // Use CSS variable for consistent sizing
     
     const powerToggle = document.createElement('button');
     powerToggle.className = 'power-toggle';
@@ -272,6 +273,33 @@ function resetNetwork() {
     DOM.status.textContent = '';
 }
 
+function toggleAllNodes() {
+    const anyPoweredOff = Object.values(NetworkState.nodes)
+        .some(node => node.classList.contains('powered-off'));
+    
+    Object.keys(NetworkState.nodes).forEach(nodeId => {
+        const node = NetworkState.nodes[nodeId];
+        const isPoweredOff = node.classList.contains('powered-off');
+        
+        if ((anyPoweredOff && isPoweredOff) || (!anyPoweredOff && !isPoweredOff)) {
+            toggleNodePower(nodeId);
+        }
+    });
+    
+    const toggleBtn = document.getElementById('toggleAllBtn');
+    if (anyPoweredOff) {
+        toggleBtn.className = 'btn btn-success w-100 mt-3';
+        toggleBtn.innerHTML = '<i class="fas fa-power-off me-2"></i>All PCs On';
+    } else {
+        toggleBtn.className = 'btn btn-danger w-100 mt-3';
+        toggleBtn.innerHTML = '<i class="fas fa-power-off me-2"></i>All PCs Off';
+    }
+    
+    const newState = anyPoweredOff ? 'on' : 'off';
+    DOM.status.textContent = `All PCs powered ${newState}`;
+    addMessageToHistory(`All PCs powered ${newState}`, true);
+}
+
 /**
  * Sends a message through the network
  */
@@ -371,36 +399,6 @@ async function sendMessage() {
     setTimeout(resetNetwork, 2000);
 }
 
-/**
- * Toggles all nodes between on and off states
- */
-function toggleAllNodes() {
-    const anyPoweredOff = Object.values(NetworkState.nodes)
-        .some(node => node.classList.contains('powered-off'));
-    
-    Object.keys(NetworkState.nodes).forEach(nodeId => {
-        const node = NetworkState.nodes[nodeId];
-        const isPoweredOff = node.classList.contains('powered-off');
-        
-        if ((anyPoweredOff && isPoweredOff) || (!anyPoweredOff && !isPoweredOff)) {
-            toggleNodePower(nodeId);
-        }
-    });
-    
-    const toggleBtn = document.getElementById('toggleAllBtn');
-    if (anyPoweredOff) {
-        toggleBtn.className = 'btn btn-success w-100';
-        toggleBtn.innerHTML = '<i class="fas fa-power-off me-2"></i>All PCs On';
-    } else {
-        toggleBtn.className = 'btn btn-danger w-100';
-        toggleBtn.innerHTML = '<i class="fas fa-power-off me-2"></i>All PCs Off';
-    }
-    
-    const newState = anyPoweredOff ? 'on' : 'off';
-    DOM.status.textContent = `All PCs powered ${newState}`;
-    addMessageToHistory(`All PCs powered ${newState}`, true);
-}
-
 // Event Listeners
 DOM.speedSlider.addEventListener('input', () => {
     const value = DOM.speedSlider.value;
@@ -413,9 +411,21 @@ DOM.speedSlider.addEventListener('input', () => {
 
 // Initialize the network
 function initializeNetwork() {
+    // Clear any existing nodes
+    DOM.network.innerHTML = '';
+    NetworkState.nodes = {};
+    NetworkState.connections = [];
+    NetworkState.nodeCount = 0;
+    
     // Add 5 PCs initially
     for (let i = 0; i < 5; i++) {
         addNode();
+    }
+    
+    // Center the network container
+    const networkWrapper = document.querySelector('.network-wrapper');
+    if (networkWrapper) {
+        networkWrapper.scrollLeft = (networkWrapper.scrollWidth - networkWrapper.clientWidth) / 2;
     }
 }
 
@@ -466,290 +476,4 @@ function getRandomNodePair(min, max) {
     const shuffled = nodes.sort(() => Math.random() - 0.5);
     return [shuffled[0], shuffled[1]];
 }
-
-/**
- * Simulation Scenarios
- * Demonstrates different network behaviors and failure modes
- */
-
-const SimulationScenarios = {
-    // Scenario 1: Basic message passing with random directions
-    basicMessagePassing: async () => {
-        // Reset network to initial state
-        while (NetworkState.nodeCount > 2) {
-            removeNode();
-        }
-        
-        // Ensure all nodes are powered on
-        Object.keys(NetworkState.nodes).forEach(nodeId => {
-            if (NetworkState.nodes[nodeId].classList.contains('powered-off')) {
-                toggleNodePower(nodeId);
-            }
-        });
-        
-        // Send multiple messages in random directions
-        for (let i = 0; i < 3; i++) {
-            const [from, to] = getRandomNodePair(1, 2);
-            DOM.fromNode.value = from.toString();
-            DOM.toNode.value = to.toString();
-            await sendMessage();
-            await sleep(2000);
-        }
-    },
-    
-    // Scenario 2: Power failure demonstration with random patterns
-    powerFailure: async () => {
-        // Reset network to 4 nodes
-        while (NetworkState.nodeCount > 4) {
-            removeNode();
-        }
-        while (NetworkState.nodeCount < 4) {
-            addNode();
-        }
-        
-        // Ensure all nodes are powered on initially
-        Object.keys(NetworkState.nodes).forEach(nodeId => {
-            if (NetworkState.nodes[nodeId].classList.contains('powered-off')) {
-                toggleNodePower(nodeId);
-            }
-        });
-        
-        // Send initial message in random direction
-        const [from, to] = getRandomNodePair(1, 4);
-        DOM.fromNode.value = from.toString();
-        DOM.toNode.value = to.toString();
-        await sendMessage();
-        await sleep(2000);
-        
-        // Randomly power off nodes and test communication
-        for (let i = 0; i < 3; i++) {
-            const randomNode = Math.floor(Math.random() * 4) + 1;
-            toggleNodePower(randomNode);
-            await sleep(1000);
-            
-            // Try sending message in random direction
-            const [newFrom, newTo] = getRandomNodePair(1, 4);
-            DOM.fromNode.value = newFrom.toString();
-            DOM.toNode.value = newTo.toString();
-            await sendMessage();
-            await sleep(2000);
-            
-            // Power the node back on
-            toggleNodePower(randomNode);
-            await sleep(1000);
-        }
-    },
-    
-    // Scenario 3: Wire failure demonstration with random patterns
-    wireFailure: async () => {
-        // Reset network to 4 nodes
-        while (NetworkState.nodeCount > 4) {
-            removeNode();
-        }
-        while (NetworkState.nodeCount < 4) {
-            addNode();
-        }
-        
-        // Ensure all nodes are powered on
-        Object.keys(NetworkState.nodes).forEach(nodeId => {
-            if (NetworkState.nodes[nodeId].classList.contains('powered-off')) {
-                toggleNodePower(nodeId);
-            }
-        });
-        
-        // Send initial message in random direction
-        const [from, to] = getRandomNodePair(1, 4);
-        DOM.fromNode.value = from.toString();
-        DOM.toNode.value = to.toString();
-        await sendMessage();
-        await sleep(2000);
-        
-        // Randomly break and repair wires
-        for (let i = 0; i < 3; i++) {
-            const randomWire = Math.floor(Math.random() * NetworkState.connections.length);
-            NetworkState.connections[randomWire].classList.add('broken');
-            await sleep(1000);
-            
-            // Try sending message in random direction
-            const [newFrom, newTo] = getRandomNodePair(1, 4);
-            DOM.fromNode.value = newFrom.toString();
-            DOM.toNode.value = newTo.toString();
-            await sendMessage();
-            await sleep(2000);
-            
-            // Repair the wire
-            NetworkState.connections[randomWire].classList.remove('broken');
-            await sleep(1000);
-        }
-    },
-    
-    // Scenario 4: Network expansion with random patterns
-    networkExpansion: async () => {
-        // Start with 2 nodes
-        while (NetworkState.nodeCount > 2) {
-            removeNode();
-        }
-        
-        // Ensure all nodes are powered on
-        Object.keys(NetworkState.nodes).forEach(nodeId => {
-            if (NetworkState.nodes[nodeId].classList.contains('powered-off')) {
-                toggleNodePower(nodeId);
-            }
-        });
-        
-        // Send message between initial nodes in random direction
-        const [from, to] = getRandomNodePair(1, 2);
-        DOM.fromNode.value = from.toString();
-        DOM.toNode.value = to.toString();
-        await sendMessage();
-        await sleep(2000);
-        
-        // Add nodes one by one and test random communication patterns
-        for (let i = 3; i <= 5; i++) {
-            addNode();
-            await sleep(1000);
-            
-            // Test multiple random communications
-            for (let j = 0; j < 2; j++) {
-                const [newFrom, newTo] = getRandomNodePair(1, i);
-                DOM.fromNode.value = newFrom.toString();
-                DOM.toNode.value = newTo.toString();
-                await sendMessage();
-                await sleep(2000);
-            }
-        }
-    },
-    
-    // Scenario 5: Complex failure scenario with random patterns
-    complexFailure: async () => {
-        // Set up 5 nodes
-        while (NetworkState.nodeCount > 5) {
-            removeNode();
-        }
-        while (NetworkState.nodeCount < 5) {
-            addNode();
-        }
-        
-        // Ensure all nodes are powered on
-        Object.keys(NetworkState.nodes).forEach(nodeId => {
-            if (NetworkState.nodes[nodeId].classList.contains('powered-off')) {
-                toggleNodePower(nodeId);
-            }
-        });
-        
-        // Send initial message in random direction
-        const [from, to] = getRandomNodePair(1, 5);
-        DOM.fromNode.value = from.toString();
-        DOM.toNode.value = to.toString();
-        await sendMessage();
-        await sleep(2000);
-        
-        // Create multiple random failures
-        const failures = [];
-        
-        // Randomly power off 2 nodes
-        for (let i = 0; i < 2; i++) {
-            const randomNode = Math.floor(Math.random() * 5) + 1;
-            if (!failures.includes(randomNode)) {
-                toggleNodePower(randomNode);
-                failures.push(randomNode);
-            }
-        }
-        
-        // Randomly break 2 wires
-        for (let i = 0; i < 2; i++) {
-            const randomWire = Math.floor(Math.random() * NetworkState.connections.length);
-            NetworkState.connections[randomWire].classList.add('broken');
-        }
-        
-        await sleep(1000);
-        
-        // Try sending message in random direction
-        const [newFrom, newTo] = getRandomNodePair(1, 5);
-        DOM.fromNode.value = newFrom.toString();
-        DOM.toNode.value = newTo.toString();
-        await sendMessage();
-        await sleep(2000);
-        
-        // Fix issues one by one in random order
-        const fixes = [...failures, ...NetworkState.connections]
-            .sort(() => Math.random() - 0.5);
-        
-        for (const fix of fixes) {
-            if (typeof fix === 'number') {
-                toggleNodePower(fix);
-            } else {
-                fix.classList.remove('broken');
-            }
-            await sleep(1000);
-            
-            // Test communication after each fix
-            const [testFrom, testTo] = getRandomNodePair(1, 5);
-            DOM.fromNode.value = testFrom.toString();
-            DOM.toNode.value = testTo.toString();
-            await sendMessage();
-            await sleep(2000);
-        }
-    }
-};
-
-/**
- * Runs a selected simulation scenario
- * @param {string} scenarioName - Name of the scenario to run
- */
-async function runSimulation(scenarioName) {
-    if (!SimulationScenarios[scenarioName]) {
-        addMessageToHistory('Invalid scenario selected', false);
-        return;
-    }
-    
-    // Disable controls during simulation
-    const controls = document.querySelectorAll('button, select, input');
-    controls.forEach(control => control.disabled = true);
-    
-    try {
-        await SimulationScenarios[scenarioName]();
-    } catch (error) {
-        console.error('Simulation error:', error);
-        addMessageToHistory('Simulation encountered an error', false);
-    } finally {
-        // Re-enable controls
-        controls.forEach(control => control.disabled = false);
-    }
-}
-
-// Add simulation controls to the UI
-function addSimulationControls() {
-    const simulationHeader = document.createElement('div');
-    simulationHeader.className = 'simulation-header mb-4';
-    simulationHeader.innerHTML = `
-        <h2 class="text-center mb-3">
-            <i class="fas fa-play-circle me-2"></i>Network Simulations
-        </h2>
-        <div class="d-flex justify-content-center gap-3 flex-wrap">
-            <button class="btn btn-primary" onclick="runSimulation('basicMessagePassing')">
-                <i class="fas fa-exchange-alt me-2"></i>Basic Message Passing
-            </button>
-            <button class="btn btn-primary" onclick="runSimulation('powerFailure')">
-                <i class="fas fa-power-off me-2"></i>Power Failure Demo
-            </button>
-            <button class="btn btn-primary" onclick="runSimulation('wireFailure')">
-                <i class="fas fa-plug me-2"></i>Wire Failure Demo
-            </button>
-            <button class="btn btn-primary" onclick="runSimulation('networkExpansion')">
-                <i class="fas fa-expand-alt me-2"></i>Network Expansion
-            </button>
-            <button class="btn btn-primary" onclick="runSimulation('complexFailure')">
-                <i class="fas fa-exclamation-triangle me-2"></i>Complex Failure
-            </button>
-        </div>
-    `;
-    
-    // Insert at the beginning of the controls panel
-    const controlsPanel = document.querySelector('.controls-panel');
-    controlsPanel.insertBefore(simulationHeader, controlsPanel.firstChild);
-}
-
-// Add simulation controls when the page loads
-document.addEventListener('DOMContentLoaded', addSimulationControls);
 
