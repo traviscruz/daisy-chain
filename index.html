@@ -153,17 +153,22 @@
                             <h5 class="card-title">
                                 <i class="fas fa-network-wired me-2"></i>Node Management
                             </h5>
-                            <div class="d-flex gap-3">
+                            <div class="d-flex gap-3 mb-3">
                                 <button class="btn btn-success flex-grow-1" onclick="addNode()">
                                     <i class="fas fa-plus me-2"></i>Add Node
                                 </button>
-                                <button class="btn btn-danger flex-grow-1" onclick="removeNode()">
-                                    <i class="fas fa-minus me-2"></i>Remove Node
+                                <button class="btn btn-warning flex-grow-1" onclick="recoverAllNodes()">
+                                    <i class="fas fa-undo me-2"></i>Recover All
                                 </button>
                             </div>
-                            <button id="toggleAllBtn" class="btn btn-primary w-100 mt-3" onclick="toggleAllNodes()">
-                                <i class="fas fa-power-off me-2"></i>All PCs On
-                            </button>
+                            
+                            <!-- Individual Node Management Panel -->
+                            <div class="node-management-panel">
+                                <h6 class="mb-2"><i class="fas fa-cogs me-2"></i>Individual Node Control</h6>
+                                <div id="nodeControlList" class="node-control-list" style="max-height: 300px; overflow-y: auto;">
+                                    <!-- Node controls will be populated here -->
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

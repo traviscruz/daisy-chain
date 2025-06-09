@@ -19,7 +19,9 @@ const NetworkState = {
     nodeCount: 0,
     messagesSent: 0,
     messagesFailed: 0,
-    currentSpeed: 1
+    currentSpeed: 1,
+    removedNodes: new Set(), // Track removed nodes
+    maxNodeId: 0 // Track highest node ID ever created
 };
 
 // Token Passing Protocol State
@@ -86,7 +88,7 @@ function createNode(id) {
     
     const label = document.createElement('span');
     label.className = 'node-label';
-    label.textContent = `PC ${id}`;
+    label.textContent = `PC ${id}`;  // Ensure consistent naming format
     
     node.appendChild(powerToggle);
     node.appendChild(monitor);
@@ -176,6 +178,7 @@ function toggleNodePower(nodeId) {
     
     updateSelects();
     updateStats();
+    updateNodeControlPanel();
 }
 
 /**
@@ -215,22 +218,25 @@ function updateSelects() {
  * Adds a new node to the network
  */
 function addNode() {
-    NetworkState.nodeCount++;
+    NetworkState.maxNodeId++; // Track the highest ID ever created
+    const newNodeId = NetworkState.maxNodeId;
     
-    if (NetworkState.nodeCount > 1) {
+    if (NetworkState.nodeCount > 0) {
         const connection = createConnection();
         DOM.network.appendChild(connection);
         NetworkState.connections.push(connection);
     }
     
-    const node = createNode(NetworkState.nodeCount);
+    const node = createNode(newNodeId);
     DOM.network.appendChild(node);
-    NetworkState.nodes[NetworkState.nodeCount] = node;
+    NetworkState.nodes[newNodeId] = node;
+    NetworkState.nodeCount++;
     
     updateSelects();
     updateStats();
-    DOM.status.textContent = `Node PC${NetworkState.nodeCount} added successfully!`;
-    addMessageToHistory(`Node PC${NetworkState.nodeCount} added successfully`, true);
+    updateNodeControlPanel();
+    DOM.status.textContent = `Node PC ${newNodeId} added successfully!`;
+    addMessageToHistory(`Node PC ${newNodeId} added successfully`, true);
 }
 
 /**
@@ -462,8 +468,8 @@ async function sendMessage() {
     
     // Check if source node has the token
     if (TokenState.currentNode !== sourceNode) {
-        DOM.status.textContent = `Cannot send data packet: PC${sourceNode} does not have the token!`;
-        addMessageToHistory(`Failed to send data packet: PC${sourceNode} does not have the token`, false);
+        DOM.status.textContent = `Cannot send data packet: PC ${sourceNode} does not have the token!`;
+        addMessageToHistory(`Failed to send data packet: PC ${sourceNode} does not have the token`, false);
         NetworkState.messagesFailed++;
         updateStats();
         return;
@@ -499,10 +505,20 @@ async function sendMessage() {
     // Add initial message about sending
     addMessageToHistory(`Initiated data packet transmission from PC ${sourceNode} to PC ${destinationNode}`, true);
     
-    const direction = sourceNode < destinationNode ? 1 : -1;
+    // Get all active node IDs in order
+    const activeNodeIds = Object.keys(NetworkState.nodes)
+        .map(id => parseInt(id))
+        .sort((a, b) => a - b);
+    
+    // Find indices of source and destination in the active nodes array
+    const sourceIndex = activeNodeIds.indexOf(sourceNode);
+    const destIndex = activeNodeIds.indexOf(destinationNode);
+    
+    // Determine direction and create path
+    const direction = sourceIndex < destIndex ? 1 : -1;
     const path = [];
-    for (let i = sourceNode; i !== destinationNode + direction; i += direction) {
-        path.push(i);
+    for (let i = sourceIndex; i !== destIndex + direction; i += direction) {
+        path.push(activeNodeIds[i]);
     }
     
     // Scroll to the source node first
@@ -515,6 +531,7 @@ async function sendMessage() {
         // Scroll to the current node
         scrollToNode(currentNode);
         
+        // Check if current node is powered off
         if (NetworkState.nodes[currentNode].classList.contains('powered-off')) {
             DOM.status.textContent = `Data packet failed: PC ${currentNode} is powered off!`;
             addMessageToHistory(`Data packet failed: PC ${currentNode} is powered off`, false);
@@ -527,21 +544,26 @@ async function sendMessage() {
         NetworkState.nodes[currentNode].classList.add('active');
         
         if (i < path.length - 1) {
-            const connectionIndex = Math.min(currentNode, path[i + 1]) - 1;
+            const nextNode = path[i + 1];
+            
+            // Find the connection between current node and next node
+            const connectionIndex = activeNodeIds.indexOf(Math.min(currentNode, nextNode));
             const connection = NetworkState.connections[connectionIndex];
             
+            // Check if connection is broken
             if (connection.classList.contains('broken')) {
-                DOM.status.textContent = `Data packet failed: Wire between PC ${currentNode} and PC ${path[i + 1]} is broken!`;
-                addMessageToHistory(`Data packet failed: Wire between PC ${currentNode} and PC ${path[i + 1]} is broken`, false);
+                DOM.status.textContent = `Data packet failed: Wire between PC ${currentNode} and PC ${nextNode} is broken!`;
+                addMessageToHistory(`Data packet failed: Wire between PC ${currentNode} and PC ${nextNode} is broken`, false);
                 NetworkState.messagesFailed++;
                 updateStats();
                 setTimeout(resetNetwork, 2000);
                 return;
             }
             
-            if (NetworkState.nodes[path[i + 1]].classList.contains('powered-off')) {
-                DOM.status.textContent = `Data packet failed: PC ${path[i + 1]} is powered off!`;
-                addMessageToHistory(`Data packet failed: PC ${path[i + 1]} is powered off`, false);
+            // Check if next node is powered off
+            if (NetworkState.nodes[nextNode].classList.contains('powered-off')) {
+                DOM.status.textContent = `Data packet failed: PC ${nextNode} is powered off!`;
+                addMessageToHistory(`Data packet failed: PC ${nextNode} is powered off`, false);
                 NetworkState.messagesFailed++;
                 updateStats();
                 setTimeout(resetNetwork, 2000);
@@ -594,6 +616,8 @@ function initializeNetwork() {
     NetworkState.nodes = {};
     NetworkState.connections = [];
     NetworkState.nodeCount = 0;
+    NetworkState.removedNodes.clear();
+    NetworkState.maxNodeId = 0;
     
     // Add 5 PCs initially
     for (let i = 0; i < 5; i++) {
@@ -633,6 +657,9 @@ function initializeNetwork() {
     // Add token controls to the Node Management card
     const nodeManagementCard = document.querySelector('.col-md-4:nth-child(2) .card-body');
     nodeManagementCard.appendChild(tokenControls);
+    
+    // Initialize node control panel
+    updateNodeControlPanel();
 }
 
 // Start the network
@@ -739,3 +766,193 @@ async function runDemoSimulation() {
     addMessageToHistory('Demo simulation completed', true);
 }
 
+/**
+ * Updates the node control panel
+ */
+function updateNodeControlPanel() {
+    const nodeControlList = document.getElementById('nodeControlList');
+    if (!nodeControlList) return;
+    
+    nodeControlList.innerHTML = '';
+    
+    // Get all node IDs (including removed ones) up to maxNodeId
+    for (let i = 1; i <= NetworkState.maxNodeId; i++) {
+        const nodeControlItem = document.createElement('div');
+        nodeControlItem.className = 'node-control-item';
+        nodeControlItem.id = `nodeControl${i}`;
+        
+        const isRemoved = NetworkState.removedNodes.has(i);
+        const isPoweredOff = NetworkState.nodes[i] && NetworkState.nodes[i].classList.contains('powered-off');
+        
+        if (isRemoved) {
+            nodeControlItem.classList.add('removed');
+        } else if (isPoweredOff) {
+            nodeControlItem.classList.add('powered-off');
+        }
+        
+        let statusText = 'Active';
+        let statusClass = 'active';
+        
+        if (isRemoved) {
+            statusText = 'Removed';
+            statusClass = 'removed';
+        } else if (isPoweredOff) {
+            statusText = 'Powered Off';
+            statusClass = 'powered-off';
+        }
+        
+        nodeControlItem.innerHTML = `
+            <div>
+                <strong>PC ${i}</strong>
+                <div class="node-status ${statusClass}">${statusText}</div>
+            </div>
+            <div class="node-control-buttons">
+                ${!isRemoved ? `
+                    <button class="btn btn-sm ${isPoweredOff ? 'btn-success' : 'btn-warning'}" 
+                            onclick="toggleNodePowerFromPanel(${i})" 
+                            title="${isPoweredOff ? 'Power On' : 'Power Off'}">
+                        <i class="fas fa-power-off"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" 
+                            onclick="removeSpecificNode(${i})" 
+                            title="Remove Node">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                ` : `
+                    <button class="btn btn-sm btn-success" 
+                            onclick="recoverSpecificNode(${i})" 
+                            title="Recover Node">
+                        <i class="fas fa-undo"></i>
+                    </button>
+                `}
+            </div>
+        `;
+        
+        nodeControlList.appendChild(nodeControlItem);
+    }
+}
+
+/**
+ * Toggle node power from the management panel
+ */
+function toggleNodePowerFromPanel(nodeId) {
+    if (NetworkState.removedNodes.has(nodeId)) return;
+    toggleNodePower(nodeId);
+    updateNodeControlPanel();
+}
+
+/**
+ * Remove a specific node (visual removal with renumbering)
+ */
+function removeSpecificNode(nodeId) {
+    if (NetworkState.removedNodes.has(nodeId)) return;
+    
+    // Check if we can remove (need at least 2 active nodes)
+    const activeNodeCount = Object.keys(NetworkState.nodes).filter(id => 
+        !NetworkState.removedNodes.has(parseInt(id))
+    ).length;
+    
+    if (activeNodeCount <= 2) {
+        DOM.status.textContent = 'Cannot remove node. Minimum 2 nodes required!';
+        addMessageToHistory('Failed to remove node: Minimum limit reached', false);
+        return;
+    }
+    
+    // Mark node as removed
+    NetworkState.removedNodes.add(nodeId);
+    
+    // Rebuild the network with renumbering
+    rebuildNetwork();
+    
+    DOM.status.textContent = `PC ${nodeId} removed successfully!`;
+    addMessageToHistory(`PC ${nodeId} removed successfully`, true);
+    updateNodeControlPanel();
+}
+
+/**
+ * Recover a specific node
+ */
+function recoverSpecificNode(nodeId) {
+    if (!NetworkState.removedNodes.has(nodeId)) return;
+    
+    // Remove from removed set
+    NetworkState.removedNodes.delete(nodeId);
+    
+    // Rebuild the network
+    rebuildNetwork();
+    
+    DOM.status.textContent = `PC ${nodeId} recovered successfully!`;
+    addMessageToHistory(`PC ${nodeId} recovered successfully`, true);
+    updateNodeControlPanel();
+}
+
+/**
+ * Recover all removed nodes
+ */
+function recoverAllNodes() {
+    if (NetworkState.removedNodes.size === 0) {
+        DOM.status.textContent = 'No nodes to recover!';
+        addMessageToHistory('No nodes to recover', false);
+        return;
+    }
+    
+    NetworkState.removedNodes.clear();
+    rebuildNetwork();
+    
+    DOM.status.textContent = 'All nodes recovered successfully!';
+    addMessageToHistory('All nodes recovered successfully', true);
+    updateNodeControlPanel();
+}
+
+/**
+ * Rebuild the network with proper renumbering (the "illusion")
+ */
+function rebuildNetwork() {
+    // Store current power states
+    const powerStates = {};
+    Object.keys(NetworkState.nodes).forEach(id => {
+        powerStates[id] = NetworkState.nodes[id].classList.contains('powered-off');
+    });
+    
+    // Clear existing network
+    DOM.network.innerHTML = '';
+    NetworkState.nodes = {};
+    NetworkState.connections = [];
+    NetworkState.nodeCount = 0;
+    
+    // Get active node IDs (not removed) and sort them
+    const activeNodeIds = [];
+    for (let i = 1; i <= NetworkState.maxNodeId; i++) {
+        if (!NetworkState.removedNodes.has(i)) {
+            activeNodeIds.push(i);
+        }
+    }
+    
+    // Sort active node IDs to maintain order
+    activeNodeIds.sort((a, b) => a - b);
+    
+    // Create nodes with their original IDs
+    activeNodeIds.forEach((nodeId, index) => {
+        NetworkState.nodeCount++;
+        
+        // Create connection if not the first node
+        if (index > 0) {
+            const connection = createConnection();
+            DOM.network.appendChild(connection);
+            NetworkState.connections.push(connection);
+        }
+        
+        // Create node with original ID
+        const node = createNode(nodeId);
+        DOM.network.appendChild(node);
+        NetworkState.nodes[nodeId] = node;
+        
+        // Restore power state if it existed
+        if (powerStates[nodeId]) {
+            node.classList.add('powered-off');
+        }
+    });
+    
+    updateSelects();
+    updateStats();
+}

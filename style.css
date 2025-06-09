@@ -892,3 +892,60 @@ body {
     font-weight: 600;
     margin-bottom: 0.8rem;
 }
+
+/* Node Management Panel Styles */
+.node-control-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.node-control-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.node-control-item.removed {
+    opacity: 0.5;
+    background: rgba(220, 53, 69, 0.1);
+    border-color: rgba(220, 53, 69, 0.3);
+}
+
+.node-control-item.powered-off {
+    opacity: 0.7;
+    background: rgba(255, 193, 7, 0.1);
+    border-color: rgba(255, 193, 7, 0.3);
+}
+
+.node-control-buttons {
+    display: flex;
+    gap: 4px;
+}
+
+.node-control-buttons .btn {
+    padding: 2px 6px;
+    font-size: 0.75rem;
+    border-radius: 4px;
+}
+
+.node-status {
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.node-status.active {
+    color: #16a34a;
+}
+
+.node-status.powered-off {
+    color: #f59e0b;
+}
+
+.node-status.removed {
+    color: #dc2626;
+}
