@@ -1,24 +1,24 @@
-
 // Network state management
 const NetworkState = {
-    nodes: {},
-    connections: [],
-    nodeCount: 0,
-    messagesSent: 0,
-    messagesFailed: 0,
-    currentSpeed: 1,
-    removedNodes: new Set(), // Track removed nodes
-    maxNodeId: 0, // Track highest node ID ever created
-    messageQueue: [] // Queue for pending messages
+    nodes: {},              // Stores all network nodes with their visual elements and states
+    connections: [],        // Array of connection elements between nodes
+    nodeCount: 0,          // Tracks total number of nodes in the network
+    messagesSent: 0,       // Counter for successful message transmissions
+    messagesFailed: 0,     // Counter for failed message transmissions
+    currentSpeed: 1,       // Network speed multiplier (1x to 5x)
+    removedNodes: new Set(), // Set of node IDs that have been removed but can be recovered
+    maxNodeId: 0,          // Highest node ID ever created (for consistent node numbering)
+    messageQueue: [],      // Array of pending messages waiting for token
+    nodeIPs: {}           // Store IP addresses for each node
 };
 
 // Token Passing Protocol State
 const TokenState = {
-    isActive: false,
-    currentNode: null,
-    timer: null,
-    interval: 3000, // 3 seconds per node
-    direction: 1, // 1 for forward, -1 for backward
+    isActive: false,       // Flag indicating if token passing is currently running
+    currentNode: null,     // ID of the node currently holding the token
+    timer: null,          // Reference to the token passing interval timer
+    interval: 3000,       // Time in milliseconds between token passes (3 seconds)
+    direction: 1,         // Token direction: 1 for forward, -1 for backward
 };
 
 // DOM Elements
@@ -49,6 +49,16 @@ function sleep(ms) {
 }
 
 /**
+ * Generates a unique IP address for a node
+ * @param {number} nodeId - The ID of the node
+ * @returns {string} - The generated IP address
+ */
+function generateIPAddress(nodeId) {
+    // Generate IP in format 192.168.1.xxx where xxx is based on nodeId
+    return `192.168.1.${100 + nodeId}`;
+}
+
+/**
  * Creates a new network node with power control and visual elements
  * @param {number} id - Unique identifier for the node
  * @returns {HTMLElement} - The created node element
@@ -58,6 +68,15 @@ function createNode(id) {
     node.className = 'node';
     node.id = `node${id}`;
     node.style.width = 'var(--node-size)';  // Use CSS variable for consistent sizing
+    
+    // Generate and store IP address
+    const ipAddress = generateIPAddress(id);
+    NetworkState.nodeIPs[id] = ipAddress;
+    
+    // Add tooltip with IP address
+    node.setAttribute('data-bs-toggle', 'tooltip');
+    node.setAttribute('data-bs-placement', 'top');
+    node.setAttribute('data-bs-title', `IP: ${ipAddress}`);
     
     const powerToggle = document.createElement('button');
     powerToggle.className = 'power-toggle';
@@ -82,6 +101,9 @@ function createNode(id) {
     node.appendChild(powerToggle);
     node.appendChild(monitor);
     node.appendChild(label);
+    
+    // Initialize tooltip
+    new bootstrap.Tooltip(node);
     
     return node;
 }
@@ -291,12 +313,32 @@ function toggleAllNodes() {
     const anyPoweredOff = Object.values(NetworkState.nodes)
         .some(node => node.classList.contains('powered-off'));
     
+    // Store current token state
+    const currentTokenNode = TokenState.currentNode;
+    const wasTokenActive = TokenState.isActive;
+    
+    // Temporarily pause token passing
+    if (TokenState.timer) {
+        clearTimeout(TokenState.timer);
+        TokenState.timer = null;
+    }
+    
+    // Toggle all nodes
     Object.keys(NetworkState.nodes).forEach(nodeId => {
         const node = NetworkState.nodes[nodeId];
         const isPoweredOff = node.classList.contains('powered-off');
         
         if ((anyPoweredOff && isPoweredOff) || (!anyPoweredOff && !isPoweredOff)) {
-            toggleNodePower(nodeId);
+            // Toggle power without triggering individual node animations
+            if (isPoweredOff) {
+                node.classList.remove('powered-off');
+                node.querySelector('.monitor img').src = 'images/pc-on.png';
+            } else {
+                node.classList.add('powered-off');
+                node.querySelector('.monitor img').src = 'images/pc-off.png';
+                // Remove token icon when powering off
+                node.classList.remove('has-token');
+            }
         }
     });
     
@@ -307,6 +349,42 @@ function toggleAllNodes() {
     } else {
         toggleBtn.className = 'btn btn-danger flex-grow-1';
         toggleBtn.innerHTML = '<i class="fas fa-power-off me-2"></i>Turn All Off';
+    }
+    
+    // Update stats once after all nodes are toggled
+    updateStats();
+    updateSelects();
+    
+    // Handle token passing
+    if (anyPoweredOff) {
+        // Get active nodes after toggle
+        const activeNodes = Object.entries(NetworkState.nodes)
+            .filter(([_, node]) => !node.classList.contains('powered-off'))
+            .map(([id]) => parseInt(id));
+        
+        if (activeNodes.length >= 2) {
+            // If previous token node is still active, keep it
+            if (wasTokenActive && currentTokenNode && 
+                !NetworkState.nodes[currentTokenNode].classList.contains('powered-off')) {
+                TokenState.currentNode = currentTokenNode;
+            } else {
+                TokenState.currentNode = activeNodes[0];
+            }
+            
+            // Add token indicator
+            const node = NetworkState.nodes[TokenState.currentNode];
+            node.classList.add('has-token');
+            
+            // Resume token passing
+            TokenState.isActive = true;
+            TokenState.timer = setTimeout(passToken, TokenState.interval);
+        }
+    } else {
+        TokenState.isActive = false;
+        // Remove token icon from all nodes when turning all off
+        Object.values(NetworkState.nodes).forEach(node => {
+            node.classList.remove('has-token');
+        });
     }
     
     const newState = anyPoweredOff ? 'on' : 'off';
@@ -336,26 +414,28 @@ function scrollToNode(nodeId) {
  * Starts the token passing protocol
  */
 function startTokenPassing() {
-    // Get all powered-on nodes
+    // Get all powered-on nodes and convert their IDs to integers
     const activeNodes = Object.entries(NetworkState.nodes)
         .filter(([_, node]) => !node.classList.contains('powered-off'))
         .map(([id]) => parseInt(id));
 
+    // Validate minimum node requirement for token passing
     if (activeNodes.length < 2) {
         DOM.status.textContent = 'Need at least 2 powered-on nodes for token passing!';
         addMessageToHistory('Failed to start token passing: Not enough active nodes', false);
         return;
     }
 
+    // Initialize token passing state
     TokenState.isActive = true;
-    TokenState.currentNode = activeNodes[0];
-    TokenState.direction = 1;
+    TokenState.currentNode = activeNodes[0];  // Start with first active node
+    TokenState.direction = 1;                 // Start in forward direction
 
-    // Add token to first node
+    // Add visual token indicator to first node
     const node = NetworkState.nodes[TokenState.currentNode];
     node.classList.add('has-token');
 
-    // Start the token passing
+    // Start the token passing cycle
     passToken();
 }
 
@@ -363,38 +443,38 @@ function startTokenPassing() {
  * Passes the token to the next node
  */
 function passToken() {
-    if (!TokenState.isActive) return;
+    if (!TokenState.isActive) return;  // Exit if token passing is not active
 
-    // Remove token from current node
+    // Remove visual token indicator from current node
     if (TokenState.currentNode) {
         const node = NetworkState.nodes[TokenState.currentNode];
         node.classList.remove('has-token');
     }
 
-    // Get all powered-on nodes
+    // Get list of all powered-on nodes
     const activeNodes = Object.entries(NetworkState.nodes)
         .filter(([_, node]) => !node.classList.contains('powered-off'))
         .map(([id]) => parseInt(id));
 
-    // Find current node index
+    // Find current node's position in the active nodes array
     const currentIndex = activeNodes.indexOf(TokenState.currentNode);
 
-    // Calculate next node index
+    // Calculate next node index based on direction
     let nextIndex = currentIndex + TokenState.direction;
     if (nextIndex >= activeNodes.length) {
-        nextIndex = 0;
+        nextIndex = 0;  // Wrap around to start if at end
     } else if (nextIndex < 0) {
-        nextIndex = activeNodes.length - 1;
+        nextIndex = activeNodes.length - 1;  // Wrap around to end if at start
     }
 
-    // Update current node
+    // Update current node to next node
     TokenState.currentNode = activeNodes[nextIndex];
 
-    // Add token to new node
+    // Add visual token indicator to new node
     const node = NetworkState.nodes[TokenState.currentNode];
     node.classList.add('has-token');
 
-    // Update status
+    // Update status display and log
     DOM.status.textContent = `Token at PC ${TokenState.currentNode}`;
     addMessageToHistory(`Token passed to PC ${TokenState.currentNode}`, true);
 
@@ -498,12 +578,13 @@ async function sendMessage() {
     
     // Check if source node has the token
     if (TokenState.currentNode !== sourceNode) {
-        // Add message to queue
+        // Check if message is already queued
         const messageExists = NetworkState.messageQueue.some(msg => 
             msg.sourceNode === sourceNode && msg.destinationNode === destinationNode
         );
         
         if (!messageExists) {
+            // Add new message to queue with timestamp
             NetworkState.messageQueue.push({
                 sourceNode,
                 destinationNode,
@@ -512,7 +593,7 @@ async function sendMessage() {
             
             DOM.status.textContent = `Message queued: PC ${sourceNode} will send to PC ${destinationNode} when it gets the token`;
             addMessageToHistory(`Message queued from PC ${sourceNode} to PC ${destinationNode}`, true);
-            updateQueueDisplay(); // Update the queue display
+            updateQueueDisplay();
         } else {
             DOM.status.textContent = `Message already queued: PC ${sourceNode} to PC ${destinationNode}`;
             addMessageToHistory(`Message already queued from PC ${sourceNode} to PC ${destinationNode}`, false);
@@ -570,6 +651,10 @@ async function sendMessage() {
     scrollToNode(sourceNode);
     await sleep(500); // Wait for scroll to complete
     
+    // Activate source node with a pulse effect
+    NetworkState.nodes[sourceNode].classList.add('active');
+    await sleep(300);
+    
     for (let i = 0; i < path.length; i++) {
         const currentNode = path[i];
         
@@ -585,8 +670,6 @@ async function sendMessage() {
             setTimeout(resetNetwork, 2000);
             return;
         }
-        
-        NetworkState.nodes[currentNode].classList.add('active');
         
         if (i < path.length - 1) {
             const nextNode = path[i + 1];
@@ -615,28 +698,45 @@ async function sendMessage() {
                 return;
             }
             
+            // Activate the connection and prepare the data packet
             connection.classList.add('active');
             const dataPacket = connection.querySelector('.data-packet');
             dataPacket.style.display = 'block';
             
+            // Set initial transform based on direction
             if (direction === -1) {
                 dataPacket.style.transform = 'translate(50%, -50%) scaleX(-1)';
             } else {
                 dataPacket.style.transform = 'translate(-50%, -50%)';
             }
             
+            // Start the packet animation
             dataPacket.classList.add('moving');
             DOM.status.textContent = `Data packet passing through PC ${currentNode}...`;
             
+            // Calculate animation duration based on speed
             const speed = parseFloat(DOM.speedSlider.value);
-            await sleep(1000 / speed);
+            const animationDuration = 1500 / speed; // Base duration of 1.5s adjusted by speed
+            
+            // Wait for the animation to complete
+            await sleep(animationDuration);
+            
+            // Clean up the animation
             dataPacket.classList.remove('moving');
             dataPacket.style.display = 'none';
+            
+            // Activate the next node with a pulse effect
+            NetworkState.nodes[nextNode].classList.add('active');
+            await sleep(300);
         }
     }
     
     // Scroll to the destination node at the end
     scrollToNode(destinationNode);
+    
+    // Add a final pulse effect to the destination node
+    NetworkState.nodes[destinationNode].classList.add('active');
+    await sleep(500);
     
     DOM.status.textContent = `Data packet successfully delivered from PC ${sourceNode} to PC ${destinationNode}!`;
     addMessageToHistory(`Data packet successfully delivered from PC ${sourceNode} to PC ${destinationNode}`, true);
@@ -826,20 +926,15 @@ async function runDemoSimulation() {
  * Stops the current simulation
  */
 function stopSimulation() {
-    // Stop token passing
-    TokenState.isActive = false;
+    // Stop the demo simulation timer
     if (TokenState.timer) {
         clearTimeout(TokenState.timer);
         TokenState.timer = null;
     }
 
-    // Remove token from current node
-    if (TokenState.currentNode) {
-        const node = NetworkState.nodes[TokenState.currentNode];
-        if (node) {
-            node.classList.remove('has-token');
-        }
-    }
+    // Clear message queue
+    NetworkState.messageQueue = [];
+    updateQueueDisplay();
 
     // Reset network state
     resetNetwork();
@@ -850,8 +945,13 @@ function stopSimulation() {
     stopBtn.disabled = true;
     runBtn.disabled = false;
 
-    DOM.status.textContent = 'Simulation stopped!';
-    addMessageToHistory('Simulation stopped by user', true);
+    DOM.status.textContent = 'Demo simulation stopped!';
+    addMessageToHistory('Demo simulation stopped by user', true);
+
+    // Ensure token passing is active
+    if (!TokenState.isActive) {
+        startTokenPassing();
+    }
 }
 
 /**
@@ -946,6 +1046,36 @@ function removeSpecificNode(nodeId) {
         return;
     }
     
+    // Check if the node being removed has the token
+    if (TokenState.currentNode === nodeId) {
+        // Get list of all powered-on nodes
+        const activeNodes = Object.entries(NetworkState.nodes)
+            .filter(([id, node]) => !node.classList.contains('powered-off') && !NetworkState.removedNodes.has(parseInt(id)))
+            .map(([id]) => parseInt(id));
+        
+        // Find current node's position in the active nodes array
+        const currentIndex = activeNodes.indexOf(nodeId);
+        
+        // Calculate next node index based on direction
+        let nextIndex = currentIndex + TokenState.direction;
+        if (nextIndex >= activeNodes.length) {
+            nextIndex = 0;  // Wrap around to start if at end
+        } else if (nextIndex < 0) {
+            nextIndex = activeNodes.length - 1;  // Wrap around to end if at start
+        }
+        
+        // Update token to next node
+        TokenState.currentNode = activeNodes[nextIndex];
+        
+        // Add visual token indicator to new node
+        const nextNode = NetworkState.nodes[TokenState.currentNode];
+        nextNode.classList.add('has-token');
+        
+        // Update status display and log
+        DOM.status.textContent = `Token transferred to PC ${TokenState.currentNode}`;
+        addMessageToHistory(`Token transferred to PC ${TokenState.currentNode}`, true);
+    }
+    
     // Remove any queued messages for this node
     const initialQueueLength = NetworkState.messageQueue.length;
     NetworkState.messageQueue = NetworkState.messageQueue.filter(msg => 
@@ -996,8 +1126,27 @@ function recoverAllNodes() {
         return;
     }
     
+    // Store current token state
+    const currentTokenNode = TokenState.currentNode;
+    const wasTokenActive = TokenState.isActive;
+    
     NetworkState.removedNodes.clear();
     rebuildNetwork();
+    
+    // Restore token state
+    if (wasTokenActive && currentTokenNode) {
+        TokenState.isActive = true;
+        TokenState.currentNode = currentTokenNode;
+        const node = NetworkState.nodes[currentTokenNode];
+        if (node) {
+            node.classList.add('has-token');
+        }
+        // Restart token passing with proper interval
+        if (TokenState.timer) {
+            clearTimeout(TokenState.timer);
+        }
+        TokenState.timer = setTimeout(passToken, TokenState.interval);
+    }
     
     DOM.status.textContent = 'All nodes recovered successfully!';
     addMessageToHistory('All nodes recovered successfully', true);
@@ -1008,10 +1157,12 @@ function recoverAllNodes() {
  * Rebuild the network with proper renumbering (the "illusion")
  */
 function rebuildNetwork() {
-    // Store current power states
+    // Store current power states and IP addresses
     const powerStates = {};
+    const ipAddresses = {};
     Object.keys(NetworkState.nodes).forEach(id => {
         powerStates[id] = NetworkState.nodes[id].classList.contains('powered-off');
+        ipAddresses[id] = NetworkState.nodeIPs[id];
     });
     
     // Clear existing network
@@ -1051,6 +1202,9 @@ function rebuildNetwork() {
         if (powerStates[nodeId]) {
             node.classList.add('powered-off');
         }
+        
+        // Restore IP address
+        NetworkState.nodeIPs[nodeId] = ipAddresses[nodeId] || generateIPAddress(nodeId);
     });
     
     updateSelects();
