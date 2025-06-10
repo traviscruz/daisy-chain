@@ -1,16 +1,3 @@
-/**
- * Daisy Chain Network Simulation
- * A visual simulation of a daisy chain network topology with interactive nodes and connections.
- * 
- * Features:
- * - Dynamic node addition/removal
- * - Visual data packet transmission
- * - Node power control
- * - Wire failure simulation
- * - Network statistics tracking
- * - Message history logging
- * - Animation speed control
- */
 
 // Network state management
 const NetworkState = {
@@ -21,7 +8,8 @@ const NetworkState = {
     messagesFailed: 0,
     currentSpeed: 1,
     removedNodes: new Set(), // Track removed nodes
-    maxNodeId: 0 // Track highest node ID ever created
+    maxNodeId: 0, // Track highest node ID ever created
+    messageQueue: [] // Queue for pending messages
 };
 
 // Token Passing Protocol State
@@ -42,6 +30,7 @@ const DOM = {
     speedSlider: document.getElementById('speedSlider'),
     speedValue: document.getElementById('speedValue'),
     messageHistory: document.getElementById('messageHistory'),
+    queueList: document.getElementById('queueList'),
     stats: {
         activeNodes: document.getElementById('activeNodes'),
         brokenWires: document.getElementById('brokenWires'),
@@ -173,6 +162,18 @@ function toggleNodePower(nodeId) {
         DOM.status.textContent = `PC ${nodeId} powered on`;
         addMessageToHistory(`PC ${nodeId} powered on`, true);
     } else {
+        // Remove any queued messages for this node before powering off
+        const initialQueueLength = NetworkState.messageQueue.length;
+        NetworkState.messageQueue = NetworkState.messageQueue.filter(msg => 
+            msg.sourceNode !== nodeId && msg.destinationNode !== nodeId
+        );
+        
+        // If any messages were removed, update the queue display
+        if (NetworkState.messageQueue.length !== initialQueueLength) {
+            updateQueueDisplay();
+            addMessageToHistory(`Removed queued messages for PC ${nodeId}`, true);
+        }
+        
         node.classList.add('powered-off');
         monitorImg.src = 'images/pc-off.png';
         DOM.status.textContent = `PC ${nodeId} powered off`;
@@ -397,6 +398,9 @@ function passToken() {
     DOM.status.textContent = `Token at PC ${TokenState.currentNode}`;
     addMessageToHistory(`Token passed to PC ${TokenState.currentNode}`, true);
 
+    // Process any queued messages for this node
+    processQueuedMessages();
+
     // Schedule next token pass
     TokenState.timer = setTimeout(passToken, TokenState.interval);
 }
@@ -426,6 +430,66 @@ function updateTokenInterval(value) {
 }
 
 /**
+ * Updates the queue display
+ */
+function updateQueueDisplay() {
+    DOM.queueList.innerHTML = '';
+    
+    if (NetworkState.messageQueue.length === 0) {
+        const emptyMessage = document.createElement('div');
+        emptyMessage.className = 'queue-item';
+        emptyMessage.innerHTML = '<i class="fas fa-inbox"></i> No messages in queue';
+        DOM.queueList.appendChild(emptyMessage);
+        return;
+    }
+    
+    NetworkState.messageQueue.forEach(msg => {
+        const queueItem = document.createElement('div');
+        queueItem.className = 'queue-item';
+        
+        const timestamp = new Date(msg.timestamp).toLocaleTimeString();
+        
+        queueItem.innerHTML = `
+            <i class="fas fa-paper-plane"></i>
+            <span>PC ${msg.sourceNode} → PC ${msg.destinationNode}</span>
+            <span class="timestamp">${timestamp}</span>
+        `;
+        
+        DOM.queueList.appendChild(queueItem);
+    });
+}
+
+/**
+ * Process any queued messages for the current node
+ */
+async function processQueuedMessages() {
+    if (!TokenState.isActive || !TokenState.currentNode) return;
+    
+    // Find messages in queue for current node
+    const pendingMessages = NetworkState.messageQueue.filter(msg => msg.sourceNode === TokenState.currentNode);
+    
+    if (pendingMessages.length > 0) {
+        // Get the first message in queue for this node
+        const message = pendingMessages[0];
+        
+        // Remove it from queue
+        NetworkState.messageQueue = NetworkState.messageQueue.filter(msg => 
+            !(msg.sourceNode === message.sourceNode && msg.destinationNode === message.destinationNode)
+        );
+        
+        // Update the queue display
+        updateQueueDisplay();
+        
+        // Set the source and destination in the UI
+        DOM.sourceNode.value = message.sourceNode;
+        DOM.destinationNode.value = message.destinationNode;
+        
+        // Send the message
+        await sendMessage();
+    }
+}
+
+/**
  * Modify the sendMessage function to check for token
  */
 async function sendMessage() {
@@ -434,10 +498,25 @@ async function sendMessage() {
     
     // Check if source node has the token
     if (TokenState.currentNode !== sourceNode) {
-        DOM.status.textContent = `Cannot send data packet: PC ${sourceNode} does not have the token!`;
-        addMessageToHistory(`Failed to send data packet: PC ${sourceNode} does not have the token`, false);
-        NetworkState.messagesFailed++;
-        updateStats();
+        // Add message to queue
+        const messageExists = NetworkState.messageQueue.some(msg => 
+            msg.sourceNode === sourceNode && msg.destinationNode === destinationNode
+        );
+        
+        if (!messageExists) {
+            NetworkState.messageQueue.push({
+                sourceNode,
+                destinationNode,
+                timestamp: new Date()
+            });
+            
+            DOM.status.textContent = `Message queued: PC ${sourceNode} will send to PC ${destinationNode} when it gets the token`;
+            addMessageToHistory(`Message queued from PC ${sourceNode} to PC ${destinationNode}`, true);
+            updateQueueDisplay(); // Update the queue display
+        } else {
+            DOM.status.textContent = `Message already queued: PC ${sourceNode} to PC ${destinationNode}`;
+            addMessageToHistory(`Message already queued from PC ${sourceNode} to PC ${destinationNode}`, false);
+        }
         return;
     }
     
@@ -623,6 +702,9 @@ function initializeNetwork() {
     
     // Initialize node control panel
     updateNodeControlPanel();
+
+    // Initialize queue display
+    updateQueueDisplay();
 
     // Start token passing automatically
     startTokenPassing();
@@ -864,6 +946,18 @@ function removeSpecificNode(nodeId) {
         return;
     }
     
+    // Remove any queued messages for this node
+    const initialQueueLength = NetworkState.messageQueue.length;
+    NetworkState.messageQueue = NetworkState.messageQueue.filter(msg => 
+        msg.sourceNode !== nodeId && msg.destinationNode !== nodeId
+    );
+    
+    // If any messages were removed, update the queue display
+    if (NetworkState.messageQueue.length !== initialQueueLength) {
+        updateQueueDisplay();
+        addMessageToHistory(`Removed queued messages for PC ${nodeId}`, true);
+    }
+    
     // Mark node as removed
     NetworkState.removedNodes.add(nodeId);
     
@@ -961,4 +1055,11 @@ function rebuildNetwork() {
     
     updateSelects();
     updateStats();
+}
+
+/**
+ * Resets the entire page by reloading it
+ */
+function resetPage() {
+    window.location.reload();
 }

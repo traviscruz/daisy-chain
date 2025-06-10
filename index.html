@@ -23,6 +23,17 @@
                 <button class="btn btn-secondary" onclick="stopSimulation()" id="stopSimBtn" disabled>
                     <i class="fas fa-stop-circle me-2"></i>Stop Simulation
                 </button>
+                <button class="btn btn-primary" onclick="resetPage()">
+                    <i class="fas fa-sync me-2"></i>Reset
+                </button>
+            </div>
+            <div class="queue-display">
+                <div class="queue-title">
+                    <i class="fas fa-clock me-2"></i>Message Queue
+                </div>
+                <div id="queueList" class="queue-list">
+                    <!-- Queued messages will be displayed here -->
+                </div>
             </div>
         </div>
         
