@@ -165,13 +165,16 @@ function addMessageToHistory(message, isSuccess) {
 function toggleNodePower(nodeId) {
     const node = NetworkState.nodes[nodeId];
     const isPoweredOff = node.classList.contains('powered-off');
+    const monitorImg = node.querySelector('.monitor img');
     
     if (isPoweredOff) {
         node.classList.remove('powered-off');
+        monitorImg.src = 'images/pc-on.png';
         DOM.status.textContent = `PC ${nodeId} powered on`;
         addMessageToHistory(`PC ${nodeId} powered on`, true);
     } else {
         node.classList.add('powered-off');
+        monitorImg.src = 'images/pc-off.png';
         DOM.status.textContent = `PC ${nodeId} powered off`;
         addMessageToHistory(`PC ${nodeId} powered off`, true);
     }
@@ -332,11 +335,6 @@ function scrollToNode(nodeId) {
  * Starts the token passing protocol
  */
 function startTokenPassing() {
-    if (TokenState.isActive) {
-        stopTokenPassing();
-        return;
-    }
-
     // Get all powered-on nodes
     const activeNodes = Object.entries(NetworkState.nodes)
         .filter(([_, node]) => !node.classList.contains('powered-off'))
@@ -352,44 +350,12 @@ function startTokenPassing() {
     TokenState.currentNode = activeNodes[0];
     TokenState.direction = 1;
 
-    // Update UI
-    const startBtn = document.getElementById('startTokenBtn');
-    startBtn.className = 'btn btn-danger';
-    startBtn.innerHTML = '<i class="fas fa-stop me-2"></i>Stop Token Passing';
-
     // Add token to first node
     const node = NetworkState.nodes[TokenState.currentNode];
     node.classList.add('has-token');
 
     // Start the token passing
     passToken();
-}
-
-/**
- * Stops the token passing protocol
- */
-function stopTokenPassing() {
-    if (!TokenState.isActive) return;
-
-    TokenState.isActive = false;
-    if (TokenState.timer) {
-        clearTimeout(TokenState.timer);
-        TokenState.timer = null;
-    }
-
-    // Reset UI
-    const startBtn = document.getElementById('startTokenBtn');
-    startBtn.className = 'btn btn-success';
-    startBtn.innerHTML = '<i class="fas fa-play me-2"></i>Start Token Passing';
-
-    // Remove token from current node
-    if (TokenState.currentNode) {
-        const node = NetworkState.nodes[TokenState.currentNode];
-        node.classList.remove('has-token');
-    }
-
-    DOM.status.textContent = 'Token passing stopped';
-    addMessageToHistory('Token passing protocol stopped', true);
 }
 
 /**
@@ -636,9 +602,6 @@ function initializeNetwork() {
     tokenControls.innerHTML = `
         <h6 class="mb-2"><i class="fas fa-sync me-2"></i>Token Passing Protocol</h6>
         <div class="d-flex gap-2 mb-2">
-            <button id="startTokenBtn" class="btn btn-success" onclick="startTokenPassing()">
-                <i class="fas fa-play me-2"></i>Start Token Passing
-            </button>
             <button id="changeDirectionBtn" class="btn btn-primary" onclick="changeTokenDirection()">
                 <i class="fas fa-arrow-right me-2"></i>Forward
             </button>
@@ -660,6 +623,9 @@ function initializeNetwork() {
     
     // Initialize node control panel
     updateNodeControlPanel();
+
+    // Start token passing automatically
+    startTokenPassing();
 }
 
 // Start the network
@@ -726,15 +692,21 @@ async function runDemoSimulation() {
         return;
     }
 
-    // Start token passing if not already active
-    if (!TokenState.isActive) {
-        startTokenPassing();
-    }
+    // Enable stop button and disable run button
+    const stopBtn = document.getElementById('stopSimBtn');
+    const runBtn = document.querySelector('.btn-danger');
+    stopBtn.disabled = false;
+    runBtn.disabled = true;
 
     // Run demo for 30 seconds
     const endTime = Date.now() + 30000;
     
     while (Date.now() < endTime) {
+        // Check if simulation was stopped
+        if (!TokenState.isActive) {
+            break;
+        }
+
         // Wait for token to be at a node
         await sleep(1000); // Check every second
         
@@ -760,10 +732,44 @@ async function runDemoSimulation() {
         }
     }
     
-    // Stop token passing after demo
-    stopTokenPassing();
+    // Reset button states
+    stopBtn.disabled = true;
+    runBtn.disabled = false;
+    
     DOM.status.textContent = 'Demo simulation completed!';
     addMessageToHistory('Demo simulation completed', true);
+}
+
+/**
+ * Stops the current simulation
+ */
+function stopSimulation() {
+    // Stop token passing
+    TokenState.isActive = false;
+    if (TokenState.timer) {
+        clearTimeout(TokenState.timer);
+        TokenState.timer = null;
+    }
+
+    // Remove token from current node
+    if (TokenState.currentNode) {
+        const node = NetworkState.nodes[TokenState.currentNode];
+        if (node) {
+            node.classList.remove('has-token');
+        }
+    }
+
+    // Reset network state
+    resetNetwork();
+
+    // Update button states
+    const stopBtn = document.getElementById('stopSimBtn');
+    const runBtn = document.querySelector('.btn-danger');
+    stopBtn.disabled = true;
+    runBtn.disabled = false;
+
+    DOM.status.textContent = 'Simulation stopped!';
+    addMessageToHistory('Simulation stopped by user', true);
 }
 
 /**

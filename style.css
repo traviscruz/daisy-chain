@@ -646,39 +646,44 @@ body::before {
     max-height: 400px !important;
     overflow-y: auto;
     margin-top: 1rem;
+    padding: 0.5rem;
 }
 
 .message-history::-webkit-scrollbar {
-    width: 12px;
+    width: 10px;
 }
 
 .message-history::-webkit-scrollbar-track {
     background: var(--comic-light);
-    border-radius: 10px;
+    border-radius: 8px;
     border: 2px solid var(--comic-dark);
 }
 
 .message-history::-webkit-scrollbar-thumb {
     background: var(--comic-primary);
-    border-radius: 10px;
+    border-radius: 8px;
     border: 2px solid var(--comic-dark);
 }
 
 .message-item {
-    padding: 8px 12px;
+    padding: 10px 12px;
     border-bottom: 2px dashed var(--comic-accent);
     font-size: 0.9rem;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     position: relative;
+    transition: background-color 0.2s ease;
+}
+
+.message-item:hover {
+    background-color: rgba(255, 255, 255, 0.5);
 }
 
 .message-item::before {
     content: '●';
     color: var(--comic-primary);
-    font-size: 1.2rem;
-    margin-right: 4px;
+    font-size: 1.1rem;
 }
 
 .message-item.success::before {
@@ -689,6 +694,18 @@ body::before {
 .message-item.error::before {
     content: '✗';
     color: var(--comic-danger);
+}
+
+.message-item .timestamp {
+    font-family: 'Bangers', cursive;
+    font-size: 0.8rem;
+    color: var(--comic-dark);
+    opacity: 0.8;
+}
+
+.message-item span:not(.timestamp) {
+    flex: 1;
+    font-weight: 500;
 }
 
 /* Token styling with comic effects */
@@ -994,7 +1011,7 @@ body::before {
 .node-control-buttons {
     display: flex;
     gap: 4px;
-    margin-left: auto; /* This pushes the buttons to the right */
+    margin-left: auto;
 }
 
 .node-control-buttons .btn {
@@ -1007,7 +1024,7 @@ body::before {
 .node-status {
     font-size: 0.8rem;
     font-weight: 500;
-    margin-right: 10px; /* Add some space between status and buttons */
+    margin-right: 10px;
 }
 
 .node-status.active {
