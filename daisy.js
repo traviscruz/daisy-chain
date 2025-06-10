@@ -9,7 +9,9 @@ const NetworkState = {
     removedNodes: new Set(), // Set of node IDs that have been removed but can be recovered
     maxNodeId: 0,          // Highest node ID ever created (for consistent node numbering)
     messageQueue: [],      // Array of pending messages waiting for token
-    nodeIPs: {}           // Store IP addresses for each node
+    nodeIPs: {},           // Store IP addresses for each node
+    isSimulationRunning: false,  // Flag to track if simulation is running
+    transferInProgress: false    // Flag to track if a message transfer is currently in progress
 };
 
 // Token Passing Protocol State
@@ -31,6 +33,7 @@ const DOM = {
     speedValue: document.getElementById('speedValue'),
     messageHistory: document.getElementById('messageHistory'),
     queueList: document.getElementById('queueList'),
+    sendButton: document.querySelector('.btn-primary[onclick="sendMessage()"]'),
     stats: {
         activeNodes: document.getElementById('activeNodes'),
         brokenWires: document.getElementById('brokenWires'),
@@ -205,6 +208,7 @@ function toggleNodePower(nodeId) {
     updateSelects();
     updateStats();
     updateNodeControlPanel();
+    updateSendButtonState();
 }
 
 /**
@@ -344,16 +348,17 @@ function toggleAllNodes() {
     
     const toggleBtn = document.getElementById('toggleAllBtn');
     if (anyPoweredOff) {
-        toggleBtn.className = 'btn btn-success flex-grow-1';
-        toggleBtn.innerHTML = '<i class="fas fa-power-off me-2"></i>Turn All On';
-    } else {
         toggleBtn.className = 'btn btn-danger flex-grow-1';
         toggleBtn.innerHTML = '<i class="fas fa-power-off me-2"></i>Turn All Off';
+    } else {
+        toggleBtn.className = 'btn btn-success flex-grow-1';
+        toggleBtn.innerHTML = '<i class="fas fa-power-off me-2"></i>Turn All On';
     }
     
     // Update stats once after all nodes are toggled
     updateStats();
     updateSelects();
+    updateSendButtonState();
     
     // Handle token passing
     if (anyPoweredOff) {
@@ -543,7 +548,7 @@ function updateQueueDisplay() {
  * Process any queued messages for the current node
  */
 async function processQueuedMessages() {
-    if (!TokenState.isActive || !TokenState.currentNode) return;
+    if (!TokenState.isActive || !TokenState.currentNode || NetworkState.transferInProgress) return;
     
     // Find messages in queue for current node
     const pendingMessages = NetworkState.messageQueue.filter(msg => msg.sourceNode === TokenState.currentNode);
@@ -570,11 +575,36 @@ async function processQueuedMessages() {
 }
 
 /**
- * Modify the sendMessage function to check for token
+ * Modify the sendMessage function to check for token and transfer status
  */
 async function sendMessage() {
     const sourceNode = parseInt(DOM.sourceNode.value);
     const destinationNode = parseInt(DOM.destinationNode.value);
+    
+    // Check if a transfer is already in progress
+    if (NetworkState.transferInProgress) {
+        // Check if message is already queued
+        const messageExists = NetworkState.messageQueue.some(msg => 
+            msg.sourceNode === sourceNode && msg.destinationNode === destinationNode
+        );
+        
+        if (!messageExists) {
+            // Add new message to queue with timestamp
+            NetworkState.messageQueue.push({
+                sourceNode,
+                destinationNode,
+                timestamp: new Date()
+            });
+            
+            DOM.status.textContent = `Message queued: PC ${sourceNode} will send to PC ${destinationNode} when current transfer completes`;
+            addMessageToHistory(`Message queued from PC ${sourceNode} to PC ${destinationNode}`, true);
+            updateQueueDisplay();
+        } else {
+            DOM.status.textContent = `Message already queued: PC ${sourceNode} to PC ${destinationNode}`;
+            addMessageToHistory(`Message already queued from PC ${sourceNode} to PC ${destinationNode}`, false);
+        }
+        return;
+    }
     
     // Check if source node has the token
     if (TokenState.currentNode !== sourceNode) {
@@ -625,6 +655,9 @@ async function sendMessage() {
         return;
     }
     
+    // Set transfer in progress flag
+    NetworkState.transferInProgress = true;
+    
     resetNetwork();
     NetworkState.messagesSent++;
     
@@ -647,101 +680,109 @@ async function sendMessage() {
         path.push(activeNodeIds[i]);
     }
     
-    // Scroll to the source node first
-    scrollToNode(sourceNode);
-    await sleep(500); // Wait for scroll to complete
-    
-    // Activate source node with a pulse effect
-    NetworkState.nodes[sourceNode].classList.add('active');
-    await sleep(300);
-    
-    for (let i = 0; i < path.length; i++) {
-        const currentNode = path[i];
+    try {
+        // Scroll to the source node first
+        scrollToNode(sourceNode);
+        await sleep(500); // Wait for scroll to complete
         
-        // Scroll to the current node
-        scrollToNode(currentNode);
+        // Activate source node with a pulse effect
+        NetworkState.nodes[sourceNode].classList.add('active');
+        await sleep(300);
         
-        // Check if current node is powered off
-        if (NetworkState.nodes[currentNode].classList.contains('powered-off')) {
-            DOM.status.textContent = `Data packet failed: PC ${currentNode} is powered off!`;
-            addMessageToHistory(`Data packet failed: PC ${currentNode} is powered off`, false);
-            NetworkState.messagesFailed++;
-            updateStats();
-            setTimeout(resetNetwork, 2000);
-            return;
-        }
-        
-        if (i < path.length - 1) {
-            const nextNode = path[i + 1];
+        for (let i = 0; i < path.length; i++) {
+            const currentNode = path[i];
             
-            // Find the connection between current node and next node
-            const connectionIndex = activeNodeIds.indexOf(Math.min(currentNode, nextNode));
-            const connection = NetworkState.connections[connectionIndex];
+            // Scroll to the current node
+            scrollToNode(currentNode);
             
-            // Check if connection is broken
-            if (connection.classList.contains('broken')) {
-                DOM.status.textContent = `Data packet failed: Wire between PC ${currentNode} and PC ${nextNode} is broken!`;
-                addMessageToHistory(`Data packet failed: Wire between PC ${currentNode} and PC ${nextNode} is broken`, false);
+            // Check if current node is powered off
+            if (NetworkState.nodes[currentNode].classList.contains('powered-off')) {
+                DOM.status.textContent = `Data packet failed: PC ${currentNode} is powered off!`;
+                addMessageToHistory(`Data packet failed: PC ${currentNode} is powered off`, false);
                 NetworkState.messagesFailed++;
                 updateStats();
                 setTimeout(resetNetwork, 2000);
                 return;
             }
             
-            // Check if next node is powered off
-            if (NetworkState.nodes[nextNode].classList.contains('powered-off')) {
-                DOM.status.textContent = `Data packet failed: PC ${nextNode} is powered off!`;
-                addMessageToHistory(`Data packet failed: PC ${nextNode} is powered off`, false);
-                NetworkState.messagesFailed++;
-                updateStats();
-                setTimeout(resetNetwork, 2000);
-                return;
+            if (i < path.length - 1) {
+                const nextNode = path[i + 1];
+                
+                // Find the connection between current node and next node
+                const connectionIndex = activeNodeIds.indexOf(Math.min(currentNode, nextNode));
+                const connection = NetworkState.connections[connectionIndex];
+                
+                // Check if connection is broken
+                if (connection.classList.contains('broken')) {
+                    DOM.status.textContent = `Data packet failed: Wire between PC ${currentNode} and PC ${nextNode} is broken!`;
+                    addMessageToHistory(`Data packet failed: Wire between PC ${currentNode} and PC ${nextNode} is broken`, false);
+                    NetworkState.messagesFailed++;
+                    updateStats();
+                    setTimeout(resetNetwork, 2000);
+                    return;
+                }
+                
+                // Check if next node is powered off
+                if (NetworkState.nodes[nextNode].classList.contains('powered-off')) {
+                    DOM.status.textContent = `Data packet failed: PC ${nextNode} is powered off!`;
+                    addMessageToHistory(`Data packet failed: PC ${nextNode} is powered off`, false);
+                    NetworkState.messagesFailed++;
+                    updateStats();
+                    setTimeout(resetNetwork, 2000);
+                    return;
+                }
+                
+                // Activate the connection and prepare the data packet
+                connection.classList.add('active');
+                const dataPacket = connection.querySelector('.data-packet');
+                dataPacket.style.display = 'block';
+                
+                // Set initial transform based on direction
+                if (direction === -1) {
+                    dataPacket.style.transform = 'translate(50%, -50%) scaleX(-1)';
+                } else {
+                    dataPacket.style.transform = 'translate(-50%, -50%)';
+                }
+                
+                // Start the packet animation
+                dataPacket.classList.add('moving');
+                DOM.status.textContent = `Data packet passing through PC ${currentNode}...`;
+                
+                // Calculate animation duration based on speed
+                const speed = parseFloat(DOM.speedSlider.value);
+                const animationDuration = 1500 / speed; // Base duration of 1.5s adjusted by speed
+                
+                // Wait for the animation to complete
+                await sleep(animationDuration);
+                
+                // Clean up the animation
+                dataPacket.classList.remove('moving');
+                dataPacket.style.display = 'none';
+                
+                // Activate the next node with a pulse effect
+                NetworkState.nodes[nextNode].classList.add('active');
+                await sleep(300);
             }
-            
-            // Activate the connection and prepare the data packet
-            connection.classList.add('active');
-            const dataPacket = connection.querySelector('.data-packet');
-            dataPacket.style.display = 'block';
-            
-            // Set initial transform based on direction
-            if (direction === -1) {
-                dataPacket.style.transform = 'translate(50%, -50%) scaleX(-1)';
-            } else {
-                dataPacket.style.transform = 'translate(-50%, -50%)';
-            }
-            
-            // Start the packet animation
-            dataPacket.classList.add('moving');
-            DOM.status.textContent = `Data packet passing through PC ${currentNode}...`;
-            
-            // Calculate animation duration based on speed
-            const speed = parseFloat(DOM.speedSlider.value);
-            const animationDuration = 1500 / speed; // Base duration of 1.5s adjusted by speed
-            
-            // Wait for the animation to complete
-            await sleep(animationDuration);
-            
-            // Clean up the animation
-            dataPacket.classList.remove('moving');
-            dataPacket.style.display = 'none';
-            
-            // Activate the next node with a pulse effect
-            NetworkState.nodes[nextNode].classList.add('active');
-            await sleep(300);
         }
+        
+        // Scroll to the destination node at the end
+        scrollToNode(destinationNode);
+        
+        // Add a final pulse effect to the destination node
+        NetworkState.nodes[destinationNode].classList.add('active');
+        await sleep(500);
+        
+        DOM.status.textContent = `Data packet successfully delivered from PC ${sourceNode} to PC ${destinationNode}!`;
+        addMessageToHistory(`Data packet successfully delivered from PC ${sourceNode} to PC ${destinationNode}`, true);
+        updateStats();
+    } finally {
+        // Reset transfer in progress flag
+        NetworkState.transferInProgress = false;
+        setTimeout(resetNetwork, 2000);
+        
+        // Process next message in queue if any
+        setTimeout(processQueuedMessages, 100);
     }
-    
-    // Scroll to the destination node at the end
-    scrollToNode(destinationNode);
-    
-    // Add a final pulse effect to the destination node
-    NetworkState.nodes[destinationNode].classList.add('active');
-    await sleep(500);
-    
-    DOM.status.textContent = `Data packet successfully delivered from PC ${sourceNode} to PC ${destinationNode}!`;
-    addMessageToHistory(`Data packet successfully delivered from PC ${sourceNode} to PC ${destinationNode}`, true);
-    updateStats();
-    setTimeout(resetNetwork, 2000);
 }
 
 // Event Listeners
@@ -805,6 +846,9 @@ function initializeNetwork() {
 
     // Initialize queue display
     updateQueueDisplay();
+
+    // Update send button state
+    updateSendButtonState();
 
     // Start token passing automatically
     startTokenPassing();
@@ -877,55 +921,87 @@ async function runDemoSimulation() {
     // Enable stop button and disable run button
     const stopBtn = document.getElementById('stopSimBtn');
     const runBtn = document.querySelector('.btn-danger');
+    if (!stopBtn || !runBtn) {
+        console.error('Demo control buttons not found');
+        return;
+    }
+
     stopBtn.disabled = false;
     runBtn.disabled = true;
+
+    // Set simulation flag to true
+    NetworkState.isSimulationRunning = true;
+
+    // Ensure token passing is active
+    if (!TokenState.isActive) {
+        startTokenPassing();
+    }
 
     // Run demo for 30 seconds
     const endTime = Date.now() + 30000;
     
-    while (Date.now() < endTime) {
-        // Check if simulation was stopped
-        if (!TokenState.isActive) {
-            break;
-        }
+    try {
+        while (Date.now() < endTime && NetworkState.isSimulationRunning) {
+            // Check if simulation was stopped
+            if (!NetworkState.isSimulationRunning) {
+                break;
+            }
 
-        // Wait for token to be at a node
-        await sleep(1000); // Check every second
-        
-        // Only proceed if token passing is active and we have a current node
-        if (TokenState.isActive && TokenState.currentNode) {
-            const sourceNode = TokenState.currentNode;
+            // Wait for token to be at a node
+            await sleep(1000); // Check every second
             
-            // Get a random destination node that's different from source
-            let destinationNode;
-            do {
-                destinationNode = activeNodes[Math.floor(Math.random() * activeNodes.length)];
-            } while (destinationNode === sourceNode);
-            
-            // Set the source and destination in the UI
-            DOM.sourceNode.value = sourceNode;
-            DOM.destinationNode.value = destinationNode;
-            
-            // Try to send message
-            await sendMessage();
-            
-            // Wait for token to move to next node
-            await sleep(TokenState.interval);
+            // Only proceed if simulation is still running and token passing is active
+            if (NetworkState.isSimulationRunning && TokenState.isActive && TokenState.currentNode) {
+                const sourceNode = TokenState.currentNode;
+                
+                // Get a random destination node that's different from source
+                let destinationNode;
+                do {
+                    destinationNode = activeNodes[Math.floor(Math.random() * activeNodes.length)];
+                } while (destinationNode === sourceNode);
+                
+                // Set the source and destination in the UI
+                DOM.sourceNode.value = sourceNode;
+                DOM.destinationNode.value = destinationNode;
+                
+                // Try to send message
+                await sendMessage();
+                
+                // Wait for token to move to next node
+                await sleep(TokenState.interval);
+            }
         }
+    } catch (error) {
+        console.error('Error in demo simulation:', error);
+        DOM.status.textContent = 'Demo simulation encountered an error!';
+        addMessageToHistory('Demo simulation encountered an error', false);
+    } finally {
+        // Reset button states
+        stopBtn.disabled = true;
+        runBtn.disabled = false;
+        
+        // Only show completion message if simulation wasn't stopped manually
+        if (NetworkState.isSimulationRunning) {
+            DOM.status.textContent = 'Demo simulation completed!';
+            addMessageToHistory('Demo simulation completed', true);
+        }
+        
+        // Reset simulation flag
+        NetworkState.isSimulationRunning = false;
     }
-    
-    // Reset button states
-    stopBtn.disabled = true;
-    runBtn.disabled = false;
-    
-    DOM.status.textContent = 'Demo simulation completed!';
-    addMessageToHistory('Demo simulation completed', true);
 }
 
 /**
  * Stops the current simulation
  */
 function stopSimulation() {
+    // Set simulation flag to false
+    NetworkState.isSimulationRunning = false;
+    
+    // Store current token state
+    const currentTokenNode = TokenState.currentNode;
+    const wasTokenActive = TokenState.isActive;
+    
     // Stop the demo simulation timer
     if (TokenState.timer) {
         clearTimeout(TokenState.timer);
@@ -945,13 +1021,20 @@ function stopSimulation() {
     stopBtn.disabled = true;
     runBtn.disabled = false;
 
+    // Restore token passing
+    if (wasTokenActive && currentTokenNode) {
+        TokenState.isActive = true;
+        TokenState.currentNode = currentTokenNode;
+        const node = NetworkState.nodes[currentTokenNode];
+        if (node) {
+            node.classList.add('has-token');
+        }
+        // Restart token passing with proper interval
+        TokenState.timer = setTimeout(passToken, TokenState.interval);
+    }
+
     DOM.status.textContent = 'Demo simulation stopped!';
     addMessageToHistory('Demo simulation stopped by user', true);
-
-    // Ensure token passing is active
-    if (!TokenState.isActive) {
-        startTokenPassing();
-    }
 }
 
 /**
@@ -1216,4 +1299,19 @@ function rebuildNetwork() {
  */
 function resetPage() {
     window.location.reload();
+}
+
+/**
+ * Updates the send button state based on whether any PCs are powered on
+ */
+function updateSendButtonState() {
+    const hasActiveNodes = Object.values(NetworkState.nodes)
+        .some(node => !node.classList.contains('powered-off'));
+    
+    if (DOM.sendButton) {
+        DOM.sendButton.disabled = !hasActiveNodes;
+        DOM.sendButton.title = hasActiveNodes ? 
+            'Send data packet' : 
+            'Cannot send: No powered-on PCs available';
+    }
 }
