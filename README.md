@@ -94,12 +94,7 @@ This project serves as an excellent learning tool for:
 
 ## 👨‍💻 Developer
 
-Created by Melgrant Travis M. Cruz
-Section: ITE 231
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Created by Travis Cruz
 
 ## 🤝 Contributing
 
